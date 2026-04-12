@@ -501,7 +501,7 @@ export default function Dispatch() {
   const [lastBooked, setLastBooked] = useState<DispatchTrip | null>(null)
 
   // Data
-  const { data: queue, refresh: refreshQueue } = useApi(
+  const { data: queue, reload: refreshQueue } = useApi(
     () => api.getDispatchQueue(city, 4),
     [city],
     { interval: 8_000 }

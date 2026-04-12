@@ -1,7 +1,14 @@
 // In production (Vercel), set VITE_API_URL to your Railway backend URL
 // e.g. https://captain-taxi-api.railway.app
 // Locally it proxies via nginx at /api
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
+// In production (Vercel), set VITE_API_URL env var to your Railway backend URL
+// e.g. https://captain-taxi-api.railway.app
+// Locally it proxies via nginx at /api
+declare const __VITE_API_URL__: string | undefined
+const BASE: string = (() => {
+  try { return (import.meta as {env?: {VITE_API_URL?: string}}).env?.VITE_API_URL ?? '/api' }
+  catch { return '/api' }
+})()
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
