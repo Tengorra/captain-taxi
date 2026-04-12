@@ -1,0 +1,42 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+sqlalchemy==2.0.30
+psycopg2-binary==2.9.9
+alembic==1.13.1
+pydantic==2.7.1
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# QuickBooks
+python-quickbooks==0.9.4
+intuit-oauth==1.2.4
+
+# Scheduler
+apscheduler==3.10.4
+
+# Notifications
+twilio==9.1.0
+sendgrid==6.11.0
+
+# AI (receipt categorization)
+anthropic==0.26.0
+
+# PDF generation
+reportlab==4.2.0
+weasyprint==62.1
+
+# Data processing
+pandas==2.2.2
+openpyxl==3.1.2
+
+# HTTP client
+httpx==0.27.0
+
+# Image/receipt processing
+pillow==10.3.0
+
+# Utilities
+python-multipart==0.0.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+aiofiles==23.2.1

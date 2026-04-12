@@ -1,0 +1,14 @@
+fastapi==0.115.5
+email-validator==2.2.0
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+pydantic==2.10.3
+pydantic-settings==2.6.1
+anthropic==0.40.0
+twilio==9.3.7
+sendgrid==6.11.0
+apscheduler==3.10.4
+aiofiles==24.1.0
+python-multipart==0.0.17

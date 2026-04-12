@@ -1,0 +1,135 @@
+{
+  "name": "Captain Taxi Voice Agent",
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "en-CA"
+  },
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "maxTokens": 512,
+    "temperature": 0.4,
+    "systemPrompt": "You are the AI voice agent for Captain Taxi, a professional taxi company serving Saskatoon and Regina, Saskatchewan, Canada.\n\nYou are speaking on the phone. Keep responses SHORT — one or two sentences — because this is a voice call. Never list things with bullet points. Speak naturally.\n\nYour job:\n1. Take taxi bookings (collect pickup address, dropoff address, name, phone number, passenger count, time)\n2. Give trip status and ETA\n3. Cancel bookings\n4. Give fare estimates\n5. Answer questions about the service\n6. Handle complaints — minor ones you resolve, serious safety complaints you escalate\n\nOnce you have a booking ready, call the create_booking tool. Do not say you are calling a tool.\n\nAfter confirming a booking say: 'Great, you're all set! Your booking is confirmed. A driver will be with you shortly. Is there anything else I can help you with?'\n\nPricing: base $4.50 plus $2.20 per km. Airport from downtown Saskatoon is about $25 to $35. Minimum fare $10.\n\nService areas: Saskatoon and Regina. 24/7 service.\n\nPhone numbers: Saskatoon 306-242-0000, Regina 306-775-2222.\n\nIf someone has a serious safety complaint, tell them a manager will call them back within one hour, and call the log_complaint tool with severity serious.\n\nAlways be warm, friendly, and professional. Canadian English. Brief responses.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "create_booking",
+          "description": "Create a taxi booking once you have all required details.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "pickup_address":  { "type": "string", "description": "Full pickup address" },
+              "dropoff_address": { "type": "string", "description": "Full dropoff address" },
+              "customer_name":   { "type": "string", "description": "Customer full name" },
+              "customer_phone":  { "type": "string", "description": "Customer phone number" },
+              "num_passengers":  { "type": "integer", "description": "Number of passengers", "default": 1 },
+              "pickup_time":     { "type": "string", "description": "ISO 8601 pickup time or ASAP", "default": "ASAP" },
+              "notes":           { "type": "string", "description": "Special requirements" }
+            },
+            "required": ["pickup_address", "dropoff_address", "customer_name", "customer_phone"]
+          }
+        },
+        "server": {
+          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_trip_status",
+          "description": "Get the current status and ETA of a trip.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "trip_id": { "type": "string" }
+            },
+            "required": ["trip_id"]
+          }
+        },
+        "server": {
+          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "cancel_trip",
+          "description": "Cancel an existing booking.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "trip_id": { "type": "string" },
+              "reason":  { "type": "string", "default": "Customer request" }
+            },
+            "required": ["trip_id"]
+          }
+        },
+        "server": {
+          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_fare_estimate",
+          "description": "Estimate the fare for a trip.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "pickup_address":  { "type": "string" },
+              "dropoff_address": { "type": "string" },
+              "after_hours":     { "type": "boolean", "default": false }
+            },
+            "required": ["pickup_address", "dropoff_address"]
+          }
+        },
+        "server": {
+          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "log_complaint",
+          "description": "Log a customer complaint. Use severity serious for any safety or misconduct issue.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "severity":    { "type": "string", "enum": ["minor", "serious"] },
+              "trip_id":     { "type": "string" }
+            },
+            "required": ["description", "severity"]
+          }
+        },
+        "server": {
+          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+        }
+      }
+    ]
+  },
+  "voice": {
+    "provider": "playht",
+    "voiceId": "jennifer",
+    "speed": 1.0,
+    "stability": 0.6
+  },
+  "firstMessage": "Thank you for calling Captain Taxi! How can I help you today?",
+  "endCallMessage": "Thank you for choosing Captain Taxi. Have a great day!",
+  "endCallPhrases": [
+    "goodbye",
+    "bye",
+    "that's all",
+    "thank you bye",
+    "thanks bye"
+  ],
+  "silenceTimeoutSeconds": 20,
+  "maxDurationSeconds": 600,
+  "backgroundSound": "off",
+  "backchannelingEnabled": true,
+  "backgroundDenoisingEnabled": true,
+  "serverUrl": "https://customer.captaintaxi.ca/webhook/vapi/call",
+  "serverUrlSecret": ""
+}

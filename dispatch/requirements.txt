@@ -1,0 +1,23 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Redis
+redis==5.2.1
+
+# Settings
+pydantic-settings==2.6.1
+
+# Anthropic (AI assignment)
+anthropic==0.40.0
+
+# Twilio (SMS notifications)
+twilio==9.3.7
+
+# HTTP client (for geocoding etc)
+httpx==0.28.0
