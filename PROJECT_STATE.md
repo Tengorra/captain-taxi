@@ -170,3 +170,4 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 3 | 2026-04-12 | Created `CLAUDE.md` — auto-read instructions for Claude at project open; established session logging convention in `PROJECT_STATE.md` |
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
+| 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
