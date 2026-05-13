@@ -153,6 +153,8 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
+      - ./website:/var/www/captain-taxi:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - orchestrator
       - dispatch

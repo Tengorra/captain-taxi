@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-04-12 (session 5)
+**Last updated:** 2026-05-13 (session 7)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -137,6 +137,20 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 
 ---
 
+### ✅ PUBLIC WEBSITE (website/)
+- `website/index.html` — full marketing site, SEO-optimized, mobile-first — DONE
+- `website/styles.css` — premium dark/gold design, fully responsive — DONE
+- `website/app.js` — scroll animations, booking form submit, sticky header, mobile menu — DONE
+- `website/sitemap.xml` — search engine sitemap — DONE
+- `website/robots.txt` — crawler permissions — DONE
+- `website/llms.txt` — AI search optimization (ChatGPT, Perplexity, etc.) — DONE
+- `website/favicon.svg` — brand favicon — DONE
+- JSON-LD structured data: TaxiService, LocalBusiness, FAQPage, WebSite schemas — DONE
+- nginx.conf updated: captain.taxi + www.captain.taxi served from /var/www/captain-taxi — DONE
+- docker-compose.yml updated: website/ mounted into nginx container — DONE
+- ⚠️ SSL cert needed: `/etc/nginx/ssl/captain-taxi/fullchain.pem` + `privkey.pem` (run certbot for captain.taxi + www.captain.taxi)
+- ⚠️ DNS: captain.taxi A record must point to server IP
+
 ## Known Gaps / Next Tasks
 - [x] Dashboard: nginx routing bug fixed — all dashboard API paths now route to admin:8006
 - [x] E2E test script: `scripts/test_e2e.py` — full trip flow (chat → dispatch → assign → lifecycle → complete)
@@ -171,3 +185,4 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 7 | 2026-05-13 | Public marketing website built in `website/` — SEO-optimized static site for www.captain.taxi. Includes structured data (TaxiService + FAQPage JSON-LD), sitemap.xml, robots.txt, llms.txt for AI search, premium dark/gold design, booking form, trust signals, services grid, coverage areas, FAQ, testimonials. nginx.conf updated to serve captain.taxi domain; docker-compose mounts website/ to nginx. |
