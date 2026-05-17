@@ -5,17 +5,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Database
+    # Database - Railway provides DATABASE_URL directly
+    DATABASE_URL: str = ""
+    REDIS_URL: str = ""
+
+    # Fallback individual fields (for local dev)
     postgres_host: str = "postgres"
     postgres_port: int = 5432
     postgres_db: str = "captaintaxi"
     postgres_user: str = "captaintaxi"
-    postgres_password: str
+    postgres_password: str = ""
 
-    # Redis
+    # Redis fallback (for local dev)
     redis_host: str = "redis"
     redis_port: int = 6379
-    redis_password: str
+    redis_password: str = ""
 
     # Anthropic
     anthropic_api_key: str
@@ -50,6 +54,12 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        if self.DATABASE_URL:
+            # Railway gives postgresql://, asyncpg needs postgresql+asyncpg://
+            url = self.DATABASE_URL
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
         from urllib.parse import quote
         password = quote(self.postgres_password, safe="")
         return (
@@ -59,6 +69,11 @@ class Settings(BaseSettings):
 
     @property
     def database_url_sync(self) -> str:
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            return url
         from urllib.parse import quote
         password = quote(self.postgres_password, safe="")
         return (
@@ -68,6 +83,8 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
+        if self.REDIS_URL:
+            return self.REDIS_URL
         from urllib.parse import quote
         password = quote(self.redis_password, safe="")
         return f"redis://:{password}@{self.redis_host}:{self.redis_port}/0"
