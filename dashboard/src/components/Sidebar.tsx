@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Car, Users, DollarSign,
-  ShieldCheck, BarChart2, Settings, Menu, X
+  ShieldCheck, BarChart2, Settings, Menu, X, Truck,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -10,6 +10,7 @@ const NAV = [
   { to: '/overview',    icon: LayoutDashboard, label: 'Overview' },
   { to: '/dispatch',    icon: Car,             label: 'Dispatch' },
   { to: '/drivers',     icon: Users,           label: 'Drivers' },
+  { to: '/vehicles',    icon: Truck,           label: 'Vehicles' },
   { to: '/accounts',    icon: DollarSign,      label: 'Accounts' },
   { to: '/compliance',  icon: ShieldCheck,     label: 'Compliance' },
   { to: '/reports',     icon: BarChart2,       label: 'Reports' },

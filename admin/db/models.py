@@ -83,24 +83,141 @@ class Driver(Base):
     performance_score = Column(Float, default=100.0)
     commission_rate = Column(Float, default=0.30)
 
+    # Auth (iCabbi Driver ID / Login + Password)
+    login_username = Column(String(100))
+    login_password_hash = Column(String(200))
+    # Personal extras
+    ethnicity = Column(String(50))
+    transporter = Column(Boolean, default=False)
+    payment_card_last4 = Column(String(8))
+    payment_card_expiry = Column(Date)
+    # Custom fields
+    pvg_disclosure = Column(Text)
+    police_record = Column(Text)
+    police_record_2 = Column(Text)
+    # Attributes (iCabbi yes/no toggles)
+    attr_pets = Column(Boolean, default=False)
+    attr_uniformed = Column(Boolean, default=False)
+    attr_topman = Column(Boolean, default=False)
+    attr_accept_discount = Column(Boolean, default=True)
+    attr_accept_account = Column(Boolean, default=True)
+    attr_accept_fixed_fares = Column(Boolean, default=True)
+    attr_accept_cash_work = Column(Boolean, default=True)
+    # Device
+    phone_assist = Column(Boolean, default=False)
+    # Invoicing / Shifts
+    invoice_footer = Column(String(100))
+    shift_reporting = Column(Boolean, default=False)
+    # Payments / VAT
+    payment_on_day = Column(String(20))
+    distribution = Column(String(20))
+    apply_vat = Column(Boolean, default=False)
+    vat_rate = Column(Float)
+    balance = Column(Float)
+    exclude_booking_fee = Column(Boolean, default=False)
+    auto_post = Column(String(30))
+    # Bank
+    bank_payment_ref = Column(String(100))
+    use_sepa = Column(Boolean, default=False)
+    bank_name = Column(String(100))
+    bank_account_name = Column(String(100))
+    sort_code = Column(String(20))
+    bank_account_number = Column(String(50))
+    # Breathalyser
+    breathalyser_enabled = Column(Boolean, default=False)
+    # Fatigue
+    fatigue_max_work_hours = Column(Integer)
+    fatigue_min_rest_hours = Column(Integer)
+    fatigue_exceed_job_pct = Column(Integer)
+    fatigue_send_alert_pct = Column(Integer)
+
+
+class DriverSite(Base):
+    """Site assignments for a driver (CTS = Captain Taxi Saskatoon, CTR = Regina)."""
+    __tablename__ = "driver_sites"
+    id = Column(String(36), primary_key=True)
+    driver_id = Column(String(36), nullable=False, index=True)
+    site_code = Column(String(20), nullable=False)
+    site_name = Column(String(100), nullable=False)
+    assigned = Column(Boolean, nullable=False, default=True)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True))
+
+
+class DriverFile(Base):
+    """HR-style uploads (Police Disclosure, Agreement, Photo ID, Licence
+    Photo/Paper, etc.). Compliance-relevant docs continue to live in
+    `documents` so the traffic-light overview stays accurate."""
+    __tablename__ = "driver_files"
+    id = Column(String(36), primary_key=True)
+    driver_id = Column(String(36), nullable=False, index=True)
+    file_type = Column(String(50), nullable=False)
+    filename = Column(String(255), nullable=False)
+    storage_path = Column(String(500), nullable=False)
+    size_bytes = Column(Integer)
+    content_type = Column(String(100))
+    uploaded_at = Column(DateTime(timezone=True))
+
 
 class Vehicle(Base):
     __tablename__ = "vehicles"
     id = Column(String(36), primary_key=True)
-    plate = Column(String(20), unique=True, nullable=False)
-    make = Column(String(100), nullable=False)
-    model = Column(String(100), nullable=False)
-    year = Column(Integer, nullable=False)
+    plate = Column(String(20))
+    make = Column(String(100))
+    model = Column(String(100))
+    year = Column(Integer)
     color = Column(String(50))
     driver_id = Column(String(36))
     insurance_expiry = Column(Date)
     registration_expiry = Column(Date)
     safety_inspection_expiry = Column(Date)
     is_active = Column(Boolean, default=True)
-    city = Column(String(20), nullable=False)
+    city = Column(String(20))
     icabbi_vehicle_id = Column(String(100))
     created_at = Column(DateTime(timezone=True))
     updated_at = Column(DateTime(timezone=True))
+
+    # iCabbi vehicle-dump extras
+    vehicle_ref = Column(String(50), index=True)
+    aka = Column(String(50))
+    internal_system_id = Column(String(50))
+    registration = Column(String(20))
+    nct_mot_expiry = Column(DateTime(timezone=True))
+    plate_expiry = Column(DateTime(timezone=True))
+    insurer = Column(String(150))
+    insurance = Column(String(150))
+    hire_expiry = Column(DateTime(timezone=True))
+    road_tax_expiry = Column(DateTime(timezone=True))
+    council_compliance_expiry = Column(DateTime(timezone=True))
+    owner_driver = Column(Boolean, default=False)
+    device_identifier = Column(String(100))
+    sensors = Column(String(50))
+    payment_device = Column(String(50))
+    payment_version = Column(String(50))
+    light_control = Column(String(50))
+    status_control = Column(String(50))
+    vehicle_phone = Column(String(30))
+    co2_emission = Column(Float)
+    credit_card_payments = Column(Boolean, default=False)
+    wifi = Column(Boolean, default=False)
+    wheelchair = Column(Boolean, default=False)
+    saloon = Column(Boolean, default=False)
+    executive = Column(Boolean, default=False)
+    good_condition = Column(Boolean, default=False)
+    average_condition = Column(Boolean, default=False)
+    seater_4 = Column(Boolean, default=False)
+    seater_5 = Column(Boolean, default=False)
+    seater_6 = Column(Boolean, default=False)
+    seater_7 = Column(Boolean, default=False)
+    seater_8 = Column(Boolean, default=False)
+    body_low_rider = Column(Boolean, default=False)
+    body_estate = Column(Boolean, default=False)
+    body_high_rider = Column(Boolean, default=False)
+    body_sedan = Column(Boolean, default=False)
+    body_minivan = Column(Boolean, default=False)
+    body_suv = Column(Boolean, default=False)
+    comments = Column(Text)
+    is_deleted = Column(Boolean, default=False)
 
 
 class Trip(Base):

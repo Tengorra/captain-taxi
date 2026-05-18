@@ -36,8 +36,11 @@ export const api = {
     return request<import('../types').Driver[]>(`/drivers/${q ? '?' + q : ''}`)
   },
   getDriver: (id: string) => request<import('../types').Driver>(`/drivers/${id}`),
-  updateDriver: (id: string, data: Partial<import('../types').Driver>) =>
-    request(`/drivers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateDriver: (id: string, data: Record<string, unknown>) =>
+    request<{ ok: boolean; driver: import('../types').Driver }>(
+      `/drivers/${id}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
   suspendDriver: (id: string, reason: string) =>
     request(`/drivers/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
   activateDriver: (id: string) => request(`/drivers/${id}/activate`, { method: 'POST' }),
@@ -108,11 +111,100 @@ export const api = {
     frequency?: string
     frequency_day?: number
     si_id?: string
+    // Auth
+    login_username?: string
+    login_password?: string
+    // Personal extras
+    ethnicity?: string
+    transporter?: boolean
+    payment_card_last4?: string
+    payment_card_expiry?: string
+    // Custom fields
+    pvg_disclosure?: string
+    police_record?: string
+    police_record_2?: string
+    // Attributes
+    attr_pets?: boolean
+    attr_uniformed?: boolean
+    attr_topman?: boolean
+    attr_accept_discount?: boolean
+    attr_accept_account?: boolean
+    attr_accept_fixed_fares?: boolean
+    attr_accept_cash_work?: boolean
+    // Device extras
+    phone_assist?: boolean
+    // Invoicing / shifts
+    invoice_footer?: string
+    shift_reporting?: boolean
+    // Payments / VAT
+    payment_on_day?: string
+    payment_on?: string
+    distribution?: string
+    apply_vat?: boolean
+    vat_rate?: number
+    balance?: number
+    exclude_booking_fee?: boolean
+    auto_post?: string
+    bank_payment_ref?: string
+    use_sepa?: boolean
+    bank_name?: string
+    bank_account_name?: string
+    sort_code?: string
+    bank_account_number?: string
+    // Breathalyser
+    breathalyser_enabled?: boolean
+    // Fatigue
+    fatigue_max_work_hours?: number
+    fatigue_min_rest_hours?: number
+    fatigue_exceed_job_pct?: number
+    fatigue_send_alert_pct?: number
+    // Site assignments
+    sites?: Array<{ site_code: string; assigned?: boolean; is_primary?: boolean }>
     // Catch-all
     icabbi_config?: Record<string, unknown>
     notes?: string
   }) =>
     request<import('../types').Driver>('/drivers/', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Driver file uploads (Police Disclosure, Agreement, Photo ID, …)
+  uploadDriverFile: async (driverId: string, fileType: string, file: File) => {
+    const form = new FormData()
+    form.append('file_type', fileType)
+    form.append('file', file)
+    const res = await fetch(`${BASE}/drivers/${driverId}/files`, {
+      method: 'POST',
+      body: form,
+    })
+    if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+    return res.json()
+  },
+  listDriverFiles: (driverId: string) =>
+    request<Array<{ id: string; type: string; filename: string; uploaded_at: string }>>(
+      `/drivers/${driverId}/files`
+    ),
+  deleteDriverFile: (driverId: string, fileId: string) =>
+    request(`/drivers/${driverId}/files/${fileId}`, { method: 'DELETE' }),
+
+  // Vehicles
+  listVehicles: (params?: { active?: boolean; search?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.active !== undefined) q.set('active', String(params.active))
+    if (params?.search) q.set('search', params.search)
+    const s = q.toString()
+    return request<Array<Record<string, unknown>>>(`/vehicles/${s ? '?' + s : ''}`)
+  },
+  createVehicle: (data: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/vehicles/', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  getVehicle: (id: string) =>
+    request<Record<string, unknown>>(`/vehicles/${id}`),
+  updateVehicle: (id: string, data: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/vehicles/${id}`, {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
+  deleteVehicle: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/vehicles/${id}`, { method: 'DELETE' }),
 
   // Escalations
   listEscalations: (status?: string) =>
