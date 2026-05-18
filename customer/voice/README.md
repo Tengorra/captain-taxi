@@ -26,7 +26,30 @@ ELEVENLABS_AUTH_HEADER=X-Captain-Auth   # optional, default is fine
 6. **Knowledge base** — optional; the FAQ block in `system_prompt.py`
    can be uploaded as a doc.
 
-## 3. ElevenLabs dashboard — Tools
+## 3a. Automated setup (recommended)
+
+The Python script `customer/voice/setup.py` creates the agent + all six
+webhook tools via the ElevenLabs API and links them together. It is
+idempotent — re-running it updates existing entities by name.
+
+```bash
+export ELEVENLABS_API_KEY=...
+export ELEVENLABS_WEBHOOK_SECRET=...           # 32+ random chars
+export VOICE_BASE_URL=https://customer.captain.taxi   # optional; this is the default
+# Optional, attaches the agent to phone numbers:
+export ELEVENLABS_PHONE_ID_SASKATOON=...
+export ELEVENLABS_PHONE_ID_REGINA=...
+
+cd customer && python voice/setup.py
+```
+
+When the script finishes it prints the agent ID. Paste it into
+`ELEVENLABS_AGENT_ID` in `customer/.env`.
+
+The tool spec lives in `customer/voice/agent_config.json` — tweak system
+prompt, voice settings, or tool descriptions there and re-run setup.
+
+## 3b. Manual setup (if you'd rather click through the dashboard)
 
 For each tool below, create a **Webhook** tool with:
 

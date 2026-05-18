@@ -27,6 +27,14 @@ const TAB_LABELS: Record<QueueTab, string> = {
 const PRIORITY_LABELS = ['Normal', 'High', 'Urgent']
 const PRIORITY_COLORS = ['text-gray-400', 'text-amber-400', 'text-red-400']
 
+const SOURCE_BADGE: Record<string, { label: string; classes: string; title: string }> = {
+  phone:    { label: '📞', classes: 'bg-emerald-500/15 text-emerald-300', title: 'Phone (voice agent)' },
+  whatsapp: { label: 'WA', classes: 'bg-green-500/15 text-green-300',    title: 'WhatsApp' },
+  web:      { label: 'W',  classes: 'bg-sky-500/15 text-sky-300',        title: 'Web chat' },
+  app:      { label: 'A',  classes: 'bg-indigo-500/15 text-indigo-300',  title: 'Mobile app' },
+  agent:    { label: 'M',  classes: 'bg-gray-500/15 text-gray-300',      title: 'Manual / dispatcher' },
+}
+
 const DRIVER_STATUS_COLOR: Record<DispatchDriverStatus, string> = {
   online:   'bg-emerald-500',
   parked:   'bg-cyan-500',
@@ -335,11 +343,20 @@ function JobRow({
 }) {
   const priorityColor = PRIORITY_COLORS[trip.priority ?? 0]
   const isActive = ['pending', 'assigned', 'en_route', 'arrived', 'in_progress'].includes(trip.status)
+  const source = SOURCE_BADGE[trip.booking_source] ?? SOURCE_BADGE.agent
 
   return (
     <tr className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
       <td className="px-2 py-1.5 text-xs text-gray-400 font-mono whitespace-nowrap">
         {formatTime(trip.requested_at)}
+      </td>
+      <td className="px-2 py-1.5">
+        <span
+          title={source.title}
+          className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold', source.classes)}
+        >
+          {source.label}
+        </span>
       </td>
       <td className="px-2 py-1.5">
         <span className={clsx('text-xs font-bold', priorityColor)}>
@@ -466,7 +483,7 @@ function JobBoard({
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-700">
-              {['Time','P','Pickup','Destination','Name','Phone','Driver','Status',''].map(h => (
+              {['Time','Src','P','Pickup','Destination','Name','Phone','Driver','Status',''].map(h => (
                 <th key={h} className="px-2 py-1.5 text-xs text-gray-600 font-medium whitespace-nowrap">
                   {h}
                 </th>
@@ -476,7 +493,7 @@ function JobBoard({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-600 text-sm">
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-600 text-sm">
                   No jobs in this queue
                 </td>
               </tr>

@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Captain Taxi — Customer Service Agent",
-    description="AI-powered customer service: phone (Vapi), WhatsApp, SMS, web chat.",
+    description="AI-powered customer service: phone (ElevenLabs Agents, Vapi fallback), WhatsApp, SMS, web chat.",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.debug else None,

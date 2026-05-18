@@ -1,0 +1,134 @@
+{
+  "agent": {
+    "name": "Captain Taxi Voice Agent",
+    "conversation_config": {
+      "agent": {
+        "first_message": "Thank you for calling Captain Taxi! How can I help you today?",
+        "language": "en",
+        "prompt": {
+          "prompt": "You are the AI voice agent for Captain Taxi, a professional taxi company serving Saskatoon and Regina, Saskatchewan, Canada.\n\nYou are speaking on the phone. Keep responses SHORT — one or two sentences. Never list things with bullet points. Speak naturally and warmly with Canadian English.\n\nYour job:\n1. Take taxi bookings (collect pickup address, dropoff address, name, phone number, passenger count, time)\n2. Give trip status and ETA\n3. Cancel bookings\n4. Give fare estimates\n5. Answer questions about the service\n6. Handle complaints — minor ones you resolve, serious safety complaints you escalate\n\nWhen you have all booking details, call the create_booking tool. Do not say you are calling a tool — say something like 'one moment, let me get that booked for you.'\n\nAfter confirming a booking say: 'Great, you're all set! A driver will be with you shortly. Anything else?'\n\nPricing: base $4.50 plus $2.20 per km. Airport from downtown Saskatoon is about $25 to $35. Minimum fare $10.\n\nService areas: Saskatoon and Regina. 24/7 service.\n\nPhone numbers: Saskatoon 306-242-0000, Regina 306-775-2222.\n\nIf someone has a serious safety complaint, tell them a manager will call them back within one hour, and call the log_complaint tool with severity serious.",
+          "llm": "claude-sonnet-4-6",
+          "temperature": 0.4,
+          "max_tokens": 512
+        }
+      },
+      "tts": {
+        "model_id": "eleven_turbo_v2_5",
+        "stability": 0.6,
+        "similarity_boost": 0.75
+      },
+      "asr": {
+        "quality": "high",
+        "user_input_audio_format": "pcm_16000"
+      }
+    },
+    "platform_settings": {
+      "call_limits": {
+        "agent_concurrency_limit": -1,
+        "daily_limit": -1
+      }
+    }
+  },
+  "base_url_env": "VOICE_BASE_URL",
+  "base_url_default": "https://customer.captain.taxi",
+  "auth_header_env": "ELEVENLABS_AUTH_HEADER",
+  "auth_header_default": "X-Captain-Auth",
+  "auth_secret_env": "ELEVENLABS_WEBHOOK_SECRET",
+  "tools": [
+    {
+      "name": "create_booking",
+      "description": "Create a taxi booking once you have pickup address, dropoff address, customer name, and phone number.",
+      "method": "POST",
+      "path": "/voice/booking",
+      "parameters": {
+        "type": "object",
+        "required": ["pickup_address", "dropoff_address"],
+        "properties": {
+          "pickup_address":  {"type": "string", "description": "Full pickup street address"},
+          "dropoff_address": {"type": "string", "description": "Full dropoff street address"},
+          "customer_name":   {"type": "string", "description": "Customer full name"},
+          "customer_phone":  {"type": "string", "description": "Customer phone number if they read it back"},
+          "caller_phone":    {"type": "string", "description": "Caller phone — fill from system__caller_id"},
+          "num_passengers":  {"type": "integer", "description": "Number of passengers"},
+          "pickup_time":     {"type": "string", "description": "ISO 8601 or 'ASAP'"},
+          "notes":           {"type": "string", "description": "Any special requirements"},
+          "city":            {"type": "string", "description": "saskatoon or regina"},
+          "conversation_id": {"type": "string", "description": "Fill from system__conversation_id"}
+        }
+      }
+    },
+    {
+      "name": "get_trip_status",
+      "description": "Look up the status and ETA of an existing trip by trip ID.",
+      "method": "POST",
+      "path": "/voice/trip-status",
+      "parameters": {
+        "type": "object",
+        "required": ["trip_id"],
+        "properties": {
+          "trip_id":      {"type": "string", "description": "Trip ID"},
+          "caller_phone": {"type": "string", "description": "Fill from system__caller_id"}
+        }
+      }
+    },
+    {
+      "name": "cancel_trip",
+      "description": "Cancel an existing booking by trip ID.",
+      "method": "POST",
+      "path": "/voice/cancel",
+      "parameters": {
+        "type": "object",
+        "required": ["trip_id"],
+        "properties": {
+          "trip_id":      {"type": "string"},
+          "reason":       {"type": "string", "description": "Reason for cancellation"},
+          "caller_phone": {"type": "string", "description": "Fill from system__caller_id"}
+        }
+      }
+    },
+    {
+      "name": "get_fare_estimate",
+      "description": "Estimate the fare between two addresses.",
+      "method": "POST",
+      "path": "/voice/fare-estimate",
+      "parameters": {
+        "type": "object",
+        "required": ["pickup_address", "dropoff_address"],
+        "properties": {
+          "pickup_address":  {"type": "string"},
+          "dropoff_address": {"type": "string"},
+          "after_hours":     {"type": "boolean", "description": "True if pickup is between midnight and 5am"}
+        }
+      }
+    },
+    {
+      "name": "log_complaint",
+      "description": "Log a customer complaint. severity='serious' for any safety incident, harassment, or dangerous driving — this alerts the owner immediately.",
+      "method": "POST",
+      "path": "/voice/complaint",
+      "parameters": {
+        "type": "object",
+        "required": ["description", "severity"],
+        "properties": {
+          "description":  {"type": "string"},
+          "severity":     {"type": "string", "enum": ["minor", "serious"]},
+          "trip_id":      {"type": "string", "description": "Related trip ID if known"},
+          "caller_phone": {"type": "string", "description": "Fill from system__caller_id"}
+        }
+      }
+    },
+    {
+      "name": "lookup_customer_bookings",
+      "description": "Look up recent bookings for a customer by phone number.",
+      "method": "POST",
+      "path": "/voice/lookup-bookings",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "customer_phone": {"type": "string"},
+          "caller_phone":   {"type": "string", "description": "Fill from system__caller_id"}
+        }
+      }
+    }
+  ]
+}

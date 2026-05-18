@@ -130,6 +130,9 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - **NEW (session 8):** `customer/voice/README.md` — full step-by-step guide for configuring the ElevenLabs dashboard (agent, tools, post-call webhook, phone number BYO Twilio or native).
 - **NEW (session 8):** `scripts/test_elevenlabs_bot.py` — simulator that hits every `/voice/*` endpoint with the JSON the dashboard tool config will emit, verifies the booking lands in dispatch with `booking_source=phone`, and exercises the signed post-call webhook.
 - **FIX (session 8):** Domain rename across 17 files — `captaintaxi.ca` → `captain.taxi` (the actual owned domain). Touched nginx configs, deploy scripts, .env examples, system prompt, Vapi assistant_config.json, and service configs.
+- **NEW (session 8):** `customer/voice/setup.py` + `customer/voice/agent_config.json` — idempotent ElevenLabs provisioning script. Creates/updates the 6 webhook tools and the Captain Taxi voice agent via the ElevenLabs API, optionally attaches the agent to phone numbers. Prints exact JSON payload on failure so the script is self-debugging. Parallel to the existing `customer/vapi/setup.py`.
+- **NEW (session 8):** Dashboard Dispatch.tsx — added "Src" column to the queue table with a colored badge per booking source (📞 phone / WA / Web / App / Manual). Phone-bot bookings are now visually distinct in the dispatcher view. TypeScript clean.
+- **POLISH (session 8):** `customer/main.py` description updated to reflect ElevenLabs as the primary voice channel.
 
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
