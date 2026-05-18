@@ -14,7 +14,12 @@ from .db.database import init_db
 from .scheduler import setup_scheduler
 from .agents.whatsapp_handler import register_owner_numbers
 from .api.routes import (
-    dashboard, drivers, escalations, compliance, reports, announcements, settings, hr
+    dashboard, drivers, escalations, compliance, reports, announcements, settings, hr,
+    # iCabbi-parity modules
+    addresses, areas, custom_fields, favourites, items, partners,
+    blacklist, receipts, owner_statements, staff,
+    # iCabbi sync
+    icabbi,
 )
 
 
@@ -58,6 +63,19 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(announcements.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(hr.router, prefix="/api")
+
+# iCabbi-parity modules
+app.include_router(addresses.router, prefix="/api")
+app.include_router(areas.router, prefix="/api")
+app.include_router(custom_fields.router, prefix="/api")
+app.include_router(favourites.router, prefix="/api")
+app.include_router(items.router, prefix="/api")
+app.include_router(partners.router, prefix="/api")
+app.include_router(blacklist.router, prefix="/api")
+app.include_router(receipts.router, prefix="/api")
+app.include_router(owner_statements.router, prefix="/api")
+app.include_router(staff.router, prefix="/api")
+app.include_router(icabbi.router, prefix="/api")
 
 
 @app.get("/")

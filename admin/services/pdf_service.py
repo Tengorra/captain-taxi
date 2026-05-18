@@ -170,3 +170,161 @@ def generate_weekly_report(data: dict) -> bytes:
     doc.build(story)
     buffer.seek(0)
     return buffer.read()
+
+
+# ─── Receipt PDF ─────────────────────────────────────────────────────────────
+
+def generate_receipt_pdf(receipt, trip=None) -> bytes:
+    """Customer-facing trip receipt PDF. `trip` may be None — if so, item-line
+    information and trip metadata come from the receipt's own snapshot fields."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+
+    story.append(Paragraph("Captain Taxi", _header_style()))
+    story.append(Paragraph("Trip Receipt", _sub_style()))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=BRAND_ACCENT))
+    story.append(Spacer(1, 10))
+
+    meta_rows = [
+        ["Receipt #", str(receipt.id)],
+        ["Trip ID", receipt.trip_id],
+        ["Date", (receipt.created_at or datetime.utcnow()).strftime("%Y-%m-%d %H:%M")],
+    ]
+    if trip is not None:
+        if getattr(trip, "pickup_address", None):
+            meta_rows.append(["Pickup", trip.pickup_address])
+        if getattr(trip, "dropoff_address", None):
+            meta_rows.append(["Dropoff", trip.dropoff_address])
+        if getattr(trip, "city", None):
+            meta_rows.append(["City", str(trip.city).title()])
+    meta_t = Table(meta_rows, colWidths=[1.4*inch, 4.6*inch])
+    meta_t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (0, -1), BRAND_GRAY),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(meta_t)
+    story.append(Spacer(1, 14))
+
+    story.append(Paragraph("Charges", _section_style()))
+    line_rows = [["Description", "Taxable", "Amount"]]
+    fare = (trip.fare or 0.0) if trip is not None else None
+    if fare is not None:
+        line_rows.append([f"Trip fare", "Yes", f"${fare:.2f}"])
+    for item in (receipt.items_json or []):
+        line_rows.append([
+            f"{item.get('name', item.get('code', '—'))}",
+            "Yes" if item.get("taxable") else "No",
+            f"${float(item.get('price', 0)):.2f}",
+        ])
+    line_rows.append(["Subtotal", "", f"${receipt.subtotal:.2f}"])
+    line_rows.append(["GST (5%)", "", f"${receipt.tax:.2f}"])
+    line_rows.append(["Total", "", f"${receipt.total:.2f}"])
+
+    lt = Table(line_rows, colWidths=[3.8*inch, 1.0*inch, 1.2*inch])
+    lt.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_DARK),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("LINEBELOW", (0, -3), (-1, -3), 0.5, BRAND_GRAY),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, -1), (-1, -1), BRAND_ACCENT),
+        ("BACKGROUND", (0, 1), (-1, -4), colors.HexColor("#fafafa")),
+    ]))
+    story.append(lt)
+
+    story.append(Spacer(1, 30))
+    story.append(HRFlowable(width="100%", thickness=1, color=BRAND_GRAY))
+    story.append(Paragraph(
+        "Thank you for riding with Captain Taxi.",
+        ParagraphStyle("ty", parent=getSampleStyleSheet()["Normal"],
+                       textColor=BRAND_GRAY, fontSize=9, alignment=TA_CENTER, spaceBefore=8)
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
+
+
+# ─── Owner Statement PDF ─────────────────────────────────────────────────────
+
+def generate_owner_statement_pdf(statement) -> bytes:
+    """Per-vehicle-owner payout statement PDF."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+
+    story.append(Paragraph("Captain Taxi", _header_style()))
+    story.append(Paragraph("Vehicle Owner Statement", _sub_style()))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=BRAND_ACCENT))
+    story.append(Spacer(1, 10))
+
+    period = f"{statement.period_start} → {statement.period_end}"
+    meta_rows = [
+        ["Statement #", str(statement.id)],
+        ["Owner", statement.owner_name or "—"],
+        ["Vehicle", statement.vehicle_ref or "—"],
+        ["Period", period],
+        ["Status", (statement.status or "draft").upper()],
+    ]
+    meta_t = Table(meta_rows, colWidths=[1.4*inch, 4.6*inch])
+    meta_t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (0, -1), BRAND_GRAY),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(meta_t)
+    story.append(Spacer(1, 14))
+
+    story.append(Paragraph("Payout Calculation", _section_style()))
+    amount_rows = [
+        ["Item", "Amount"],
+        ["Gross fares", f"${statement.gross:.2f}"],
+        ["Less: company commission", f"-${statement.deductions:.2f}"],
+        ["Net payable to owner", f"${statement.net:.2f}"],
+    ]
+    at = Table(amount_rows, colWidths=[4.2*inch, 1.8*inch])
+    at.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_DARK),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("LINEBELOW", (0, -2), (-1, -2), 0.5, BRAND_GRAY),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, -1), (-1, -1), BRAND_GREEN),
+        ("BACKGROUND", (0, 1), (-1, -2), colors.HexColor("#fafafa")),
+    ]))
+    story.append(at)
+
+    if statement.notes:
+        story.append(Spacer(1, 16))
+        story.append(Paragraph("Notes", _section_style()))
+        story.append(Paragraph(statement.notes, _normal()))
+
+    story.append(Spacer(1, 24))
+    story.append(HRFlowable(width="100%", thickness=1, color=BRAND_GRAY))
+    story.append(Paragraph(
+        "Captain Taxi — auto-generated owner statement.",
+        ParagraphStyle("foot", parent=getSampleStyleSheet()["Normal"],
+                       textColor=BRAND_GRAY, fontSize=8, alignment=TA_CENTER, spaceBefore=6)
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()

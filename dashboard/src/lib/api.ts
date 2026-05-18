@@ -197,4 +197,119 @@ export const api = {
     const q = city ? `?city=${city}` : ''
     return request<import('../types').DispatchStats>(`/dispatch/dashboard/stats${q}`)
   },
+
+  // ─── iCabbi-parity modules (thin CRUD) ─────────────────────────────────
+  // Each module exposes list / create / patch(or delete) helpers. UI pages
+  // are list+create stubs; fuller editors can be layered on later.
+
+  // Addresses
+  listAddresses: (params?: { customer_id?: string; search?: string }) =>
+    request<any[]>(`/addresses/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
+  createAddress: (data: Record<string, unknown>) =>
+    request(`/addresses/`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteAddress: (id: number) => request(`/addresses/${id}`, { method: 'DELETE' }),
+
+  // Areas
+  listAreas: (params?: { city?: string; active?: boolean }) =>
+    request<any[]>(`/areas/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
+  createArea: (data: Record<string, unknown>) =>
+    request(`/areas/`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteArea: (id: number) => request(`/areas/${id}`, { method: 'DELETE' }),
+
+  // Custom Fields
+  listFieldDefs: (entity_type?: string) =>
+    request<any[]>(`/custom-fields/defs${entity_type ? `?entity_type=${entity_type}` : ''}`),
+  createFieldDef: (data: Record<string, unknown>) =>
+    request(`/custom-fields/defs`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteFieldDef: (id: number) => request(`/custom-fields/defs/${id}`, { method: 'DELETE' }),
+
+  // Favourites
+  listFavourites: (customer_id?: string) =>
+    request<any[]>(`/favourites/${customer_id ? `?customer_id=${customer_id}` : ''}`),
+  createFavourite: (data: Record<string, unknown>) =>
+    request(`/favourites/`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteFavourite: (id: number) => request(`/favourites/${id}`, { method: 'DELETE' }),
+
+  // Items
+  listItems: (active?: boolean) =>
+    request<any[]>(`/items/${active !== undefined ? `?active=${active}` : ''}`),
+  createItem: (data: Record<string, unknown>) =>
+    request(`/items/`, { method: 'POST', body: JSON.stringify(data) }),
+  updateItem: (id: number, data: Record<string, unknown>) =>
+    request(`/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteItem: (id: number) => request(`/items/${id}`, { method: 'DELETE' }),
+
+  // Partners
+  listPartners: (active?: boolean) =>
+    request<any[]>(`/partners/${active !== undefined ? `?active=${active}` : ''}`),
+  createPartner: (data: Record<string, unknown>) =>
+    request(`/partners/`, { method: 'POST', body: JSON.stringify(data) }),
+  updatePartner: (id: number, data: Record<string, unknown>) =>
+    request(`/partners/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePartner: (id: number) => request(`/partners/${id}`, { method: 'DELETE' }),
+
+  // Blacklist
+  listBlacklist: (entity_type?: string) =>
+    request<any[]>(`/blacklist/${entity_type ? `?entity_type=${entity_type}` : ''}`),
+  addBlacklist: (data: Record<string, unknown>) =>
+    request(`/blacklist/`, { method: 'POST', body: JSON.stringify(data) }),
+  removeBlacklist: (id: number) => request(`/blacklist/${id}`, { method: 'DELETE' }),
+  checkBlacklist: (entity_type: string, entity_value: string) =>
+    request<{ blocked: boolean; reason?: string }>(
+      `/blacklist/check?entity_type=${entity_type}&entity_value=${encodeURIComponent(entity_value)}`
+    ),
+
+  // Receipts
+  listReceipts: (params?: { trip_id?: string; customer_id?: string }) =>
+    request<any[]>(`/receipts/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
+  createReceipt: (data: Record<string, unknown>) =>
+    request(`/receipts/`, { method: 'POST', body: JSON.stringify(data) }),
+  createReceiptFromTrip: (trip_id: string, item_codes?: string[], sent_to_email?: string) =>
+    request(`/receipts/from-trip`, {
+      method: 'POST',
+      body: JSON.stringify({ trip_id, item_codes, sent_to_email }),
+    }),
+  markReceiptSent: (id: number) =>
+    request(`/receipts/${id}/mark-sent`, { method: 'POST' }),
+
+  // Owner statements
+  listOwnerStatements: (params?: { status?: string; vehicle_ref?: string }) =>
+    request<any[]>(`/owner-statements/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
+  createOwnerStatement: (data: Record<string, unknown>) =>
+    request(`/owner-statements/`, { method: 'POST', body: JSON.stringify(data) }),
+  generateOwnerStatements: (period_start?: string, period_end?: string) =>
+    request<{
+      period_start: string; period_end: string; commission_rate: number;
+      created_count: number; skipped_count: number;
+      created_ids: number[]; skipped_vehicle_refs: string[];
+    }>(`/owner-statements/generate`, {
+      method: 'POST',
+      body: JSON.stringify(period_start && period_end ? { period_start, period_end } : {}),
+    }),
+  markStatementSent: (id: number) =>
+    request(`/owner-statements/${id}/mark-sent`, { method: 'POST' }),
+  markStatementPaid: (id: number) =>
+    request(`/owner-statements/${id}/mark-paid`, { method: 'POST' }),
+
+  // PDF downloads
+  receiptPdfUrl: (id: number) => `${BASE}/receipts/${id}/pdf`,
+  ownerStatementPdfUrl: (id: number) => `${BASE}/owner-statements/${id}/pdf`,
+
+  // iCabbi sync
+  getIcabbiStatus: () =>
+    request<{ configured: boolean; entities: string[] }>(`/icabbi/status`),
+  triggerIcabbiSync: (entities?: string[]) =>
+    request<{
+      ok: boolean
+      configured?: boolean
+      results: Record<string, { entity: string; created?: number; updated?: number; skipped?: boolean; reason?: string; errors?: string[] }>
+    }>(`/icabbi/sync${entities ? `?entities=${entities.join(',')}` : ''}`, { method: 'POST' }),
+
+  // Staff
+  listStaff: () => request<any[]>(`/staff/`),
+  createStaff: (data: Record<string, unknown>) =>
+    request(`/staff/`, { method: 'POST', body: JSON.stringify(data) }),
+  updateStaff: (id: number, data: Record<string, unknown>) =>
+    request(`/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteStaff: (id: number) => request(`/staff/${id}`, { method: 'DELETE' }),
 }

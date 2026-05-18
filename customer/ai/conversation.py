@@ -20,6 +20,7 @@ from db.customers import (
 )
 from db.models import Channel, ComplaintSeverity
 from services import dispatch as dispatch_svc
+from services import blacklist as blacklist_svc
 from services.notify import (
     send_booking_confirmation, send_discount, alert_owner_escalation
 )
@@ -52,6 +53,15 @@ async def _execute_tool(
         phone = tool_input.get("customer_phone") or caller_phone
         name  = tool_input.get("customer_name")
         try:
+            # Blacklist gate — block calls/SMS from numbers the owner has banned.
+            bl = await blacklist_svc.check_phone(phone) if phone else {"blocked": False}
+            if bl.get("blocked"):
+                logger.info("Booking refused (blacklisted phone %s): %s", phone, bl.get("reason"))
+                return (
+                    "I'm sorry, we cannot accept bookings from this number at this "
+                    "time. Please contact the office to resolve."
+                )
+
             customer = await get_or_create_customer(db, phone=phone, name=name)
 
             # Send to Dispatch Agent

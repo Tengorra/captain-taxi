@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Cities
     supported_cities: list[str] = ["saskatoon", "regina"]
 
+    # Internal service URLs
+    admin_agent_url: str = "http://admin:8006"
+
     @property
     def database_url(self) -> str:
         from urllib.parse import quote

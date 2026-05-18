@@ -40,7 +40,14 @@ def init_db():
     log = logging.getLogger(__name__)
 
     # Only create admin-owned tables that don't exist in shared schema
-    admin_tables = {"alerts", "driver_earnings", "settings", "announcements"}
+    admin_tables = {
+        "alerts", "driver_earnings", "settings", "announcements",
+        # iCabbi MANAGE-tab modules
+        "addresses", "areas", "custom_field_defs", "custom_field_values",
+        "favourites", "items", "partners",
+        # iCabbi ADMIN-tab modules
+        "blacklist_entries", "receipts", "owner_statements", "staff",
+    }
     for table in Base.metadata.sorted_tables:
         if table.name not in admin_tables:
             continue
@@ -84,6 +91,9 @@ def _seed_default_settings():
             ("owner_alerts_enabled", "true", "Send WhatsApp alerts to owner"),
             ("amara_alerts_enabled", "true", "Send WhatsApp alerts to Amara"),
             ("weekly_report_day", "monday", "Day to send weekly email report"),
+            ("driver_mandatory_fields",
+             '["first_name","last_name","phone"]',
+             "JSON array of state-key names that must be set when adding a driver manually"),
         ]
         for key, value, desc in defaults:
             existing = db.query(Settings).filter_by(key=key).first()
