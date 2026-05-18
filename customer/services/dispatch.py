@@ -33,23 +33,27 @@ class DispatchError(Exception):
     pass
 
 
+_VALID_BOOKING_SOURCES = {"phone", "app", "web", "whatsapp", "agent"}
+
+
 async def create_trip(
     customer_phone: str,
     customer_name: str | None,
     pickup_address: str,
     dropoff_address: str,
-    channel: str,
     city: str | None = None,
     num_passengers: int = 1,
     notes: str | None = None,
     scheduled_for: datetime | None = None,
     internal_booking_id: str | None = None,
+    booking_source: str = "agent",
 ) -> dict:
     """
     POST /dispatch/trip to the Dispatch Agent.
     Returns the dispatch response dict (at minimum: {"id": "...", "status": "..."}).
     """
     resolved_city = (city or _infer_city(pickup_address, dropoff_address)).lower().strip()
+    source = booking_source if booking_source in _VALID_BOOKING_SOURCES else "agent"
 
     payload = {
         "customer_phone": customer_phone,
@@ -59,7 +63,7 @@ async def create_trip(
         "city": resolved_city,
         "notes": notes or "",
         "scheduled_for": scheduled_for.isoformat() if scheduled_for else None,
-        "booking_source": "agent",
+        "booking_source": source,
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Owner contacts — hardcoded fallbacks, overrideable via env
     owner_phone: str = "+13068811542"
     amara_phone: str = "+13068500760"
-    owner_email: str = "owner@captaintaxi.ca"
+    owner_email: str = "owner@captain.taxi"
 
     # Company
     company_name: str = "Captain Taxi"

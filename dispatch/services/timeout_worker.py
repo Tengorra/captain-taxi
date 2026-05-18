@@ -80,6 +80,11 @@ async def _process_expired():
                 "assignment_timeout",
                 {"trip_id": trip_id, "driver_id": timed_out_driver_id},
             )
+            await ws_manager.notify_driver(
+                timed_out_driver_id,
+                "trip_revoked",
+                {"trip_id": trip_id, "reason": "timeout"},
+            )
 
             if trip.assignment_attempts >= MAX_ASSIGNMENT_ATTEMPTS:
                 logger.warning(

@@ -32,7 +32,7 @@
           }
         },
         "server": {
-          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+          "url": "https://customer.captain.taxi/webhook/vapi/call"
         }
       },
       {
@@ -49,7 +49,7 @@
           }
         },
         "server": {
-          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+          "url": "https://customer.captain.taxi/webhook/vapi/call"
         }
       },
       {
@@ -67,7 +67,7 @@
           }
         },
         "server": {
-          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+          "url": "https://customer.captain.taxi/webhook/vapi/call"
         }
       },
       {
@@ -86,7 +86,7 @@
           }
         },
         "server": {
-          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+          "url": "https://customer.captain.taxi/webhook/vapi/call"
         }
       },
       {
@@ -105,7 +105,7 @@
           }
         },
         "server": {
-          "url": "https://customer.captaintaxi.ca/webhook/vapi/call"
+          "url": "https://customer.captain.taxi/webhook/vapi/call"
         }
       }
     ]
@@ -130,6 +130,6 @@
   "backgroundSound": "off",
   "backchannelingEnabled": true,
   "backgroundDenoisingEnabled": true,
-  "serverUrl": "https://customer.captaintaxi.ca/webhook/vapi/call",
+  "serverUrl": "https://customer.captain.taxi/webhook/vapi/call",
   "serverUrlSecret": ""
 }

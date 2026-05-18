@@ -4,9 +4,9 @@
  * Usage: Add to any page on the Captain Taxi website:
  *
  *   <script>
- *     window.CaptainTaxiChat = { apiUrl: "https://customer.captaintaxi.ca" };
+ *     window.CaptainTaxiChat = { apiUrl: "https://customer.captain.taxi" };
  *   </script>
- *   <script src="https://customer.captaintaxi.ca/chat/widget.js" defer></script>
+ *   <script src="https://customer.captain.taxi/chat/widget.js" defer></script>
  *
  * The widget self-initialises after the page loads.
  */
@@ -15,7 +15,7 @@
   "use strict";
 
   const cfg = window.CaptainTaxiChat || {};
-  const API_URL   = (cfg.apiUrl  || "https://customer.captaintaxi.ca").replace(/\/$/, "");
+  const API_URL   = (cfg.apiUrl  || "https://customer.captain.taxi").replace(/\/$/, "");
   const USE_WS    = cfg.websocket !== false;   // Set to false to force polling
   const BRAND     = cfg.brandColor || "#F7B731";
   const FONT      = "'Segoe UI', Arial, sans-serif";

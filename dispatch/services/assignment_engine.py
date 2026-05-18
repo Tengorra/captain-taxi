@@ -27,6 +27,7 @@ from redis_client import (
     set_driver_status,
     push_pending_assignment,
     acquire_assignment_lock,
+    release_assignment_lock,
 )
 from services.notifications import notify_driver_trip_assigned
 from services.websocket_manager import ws_manager
@@ -280,10 +281,13 @@ async def assign_trip(trip: Trip, db: AsyncSession) -> Optional[Driver]:
 
 
 async def reassign_trip(trip: Trip, db: AsyncSession) -> Optional[Driver]:
-    """Re-run assignment, excluding the driver who timed out."""
+    """Re-run assignment after a timeout, decline, or driver-cancel."""
     logger.info("Re-assigning trip %s (attempt %d)", trip.id[:8], trip.assignment_attempts + 1)
     trip.status = TripStatus.pending
     trip.driver_id = None
     trip.assigned_at = None
     await db.flush()
+    # The previous assign_trip held a lock with a longer TTL than the
+    # assignment timeout. Drop it so the next acquire succeeds.
+    await release_assignment_lock(trip.id)
     return await assign_trip(trip, db)

@@ -12,7 +12,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from config import get_settings
 from db.database import init_db
-from routers import twilio, vapi, chat, health
+from routers import twilio, vapi, chat, health, voice
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Captain Taxi — Customer Service Agent",
-    description="AI-powered customer service: phone (Vapi), WhatsApp, SMS, web chat.",
+    description="AI-powered customer service: phone (ElevenLabs Agents, Vapi fallback), WhatsApp, SMS, web chat.",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.debug else None,
@@ -52,7 +52,8 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(health.router)
 app.include_router(twilio.router)
-app.include_router(vapi.router)
+app.include_router(vapi.router)     # legacy: kept as an alternative voice platform
+app.include_router(voice.router)    # ElevenLabs Agents (primary voice platform)
 app.include_router(chat.router)
 
 

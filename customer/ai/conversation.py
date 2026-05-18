@@ -63,6 +63,16 @@ async def _execute_tool(
                 except ValueError:
                     pass
 
+            # Map customer-service Channel → dispatch BookingSource.
+            # Channel.WEB_CHAT collapses to "web"; others use their value.
+            _CHANNEL_TO_SOURCE = {
+                Channel.PHONE.value: "phone",
+                Channel.WHATSAPP.value: "whatsapp",
+                Channel.SMS.value: "agent",     # SMS is human-typed but routed via agent
+                Channel.WEB_CHAT.value: "web",
+            }
+            booking_source = _CHANNEL_TO_SOURCE.get(channel.value, "agent")
+
             try:
                 dispatch_resp = await dispatch_svc.create_trip(
                     customer_phone=phone,
@@ -72,6 +82,7 @@ async def _execute_tool(
                     city=tool_input.get("city"),
                     notes=tool_input.get("notes"),
                     scheduled_for=pickup_dt,
+                    booking_source=booking_source,
                 )
                 trip_id = dispatch_resp.get("trip_id", f"CS-TEMP-{phone[-4:]}")
             except dispatch_svc.DispatchError as e:

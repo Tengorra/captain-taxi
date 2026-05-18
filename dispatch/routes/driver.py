@@ -237,8 +237,8 @@ async def start_trip(
 
     trip.status = TripStatus.in_progress
     trip.pickup_at = datetime.now(timezone.utc)
-    if trip.status != TripStatus.en_route:
-        trip.driver_en_route_at = trip.driver_arrived_at  # retroactively set if skipped
+    if not trip.driver_en_route_at:
+        trip.driver_en_route_at = trip.driver_arrived_at
 
     await db.commit()
 
@@ -327,4 +327,116 @@ async def driver_cancel_trip(
     asyncio.create_task(_attempt_assignment(trip.id))
 
     await ws_manager.broadcast_dashboard("driver_cancelled_trip", {"trip_id": trip.id})
+    return {"ok": True}
+
+
+@router.post("/trip/{trip_id}/decline")
+async def decline_trip(
+    trip_id: str,
+    driver_id: str,
+    reason: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Driver explicitly declines an assigned trip before accepting it.
+    Frees the driver, removes the pending-assignment timeout entry,
+    and immediately re-runs assignment (excluding this driver via
+    DriverStatus rules — they are now `online` but reassignment will
+    pick the next-best candidate).
+    """
+    result = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = result.scalar_one_or_none()
+    if not trip or trip.driver_id != driver_id:
+        raise HTTPException(status_code=404, detail="Trip not found or not assigned to you")
+    if trip.status != TripStatus.assigned:
+        raise HTTPException(status_code=409, detail=f"Cannot decline a trip in status {trip.status}")
+
+    # Pull this trip out of the timeout queue
+    from redis_client import get_redis
+    import json
+    r = await get_redis()
+    items = await r.zrangebyscore("pending_assignments", "-inf", "+inf")
+    for item in items:
+        data = json.loads(item)
+        if data.get("trip_id") == trip_id:
+            await r.zrem("pending_assignments", item)
+            break
+
+    driver_result = await db.execute(select(Driver).where(Driver.id == driver_id))
+    driver = driver_result.scalar_one_or_none()
+    if driver:
+        driver.status = DriverStatus.online
+        await set_driver_status(driver.id, DriverStatus.online.value)
+
+    trip.ai_reasoning = f"Declined by {driver.name if driver else driver_id}: {reason or 'no reason given'}"
+    await db.commit()
+
+    await ws_manager.broadcast_dashboard(
+        "trip_declined",
+        {"trip_id": trip.id, "driver_id": driver_id, "reason": reason},
+    )
+
+    # Re-attempt assignment in the background
+    import asyncio
+    from services.assignment_engine import reassign_trip
+    async def _do_reassign():
+        from database import AsyncSessionLocal
+        async with AsyncSessionLocal() as s:
+            r2 = await s.execute(select(Trip).where(Trip.id == trip_id))
+            t2 = r2.scalar_one_or_none()
+            if t2:
+                await reassign_trip(t2, s)
+                await s.commit()
+    asyncio.create_task(_do_reassign())
+
+    return {"ok": True}
+
+
+@router.post("/trip/{trip_id}/en_route")
+async def driver_en_route(
+    trip_id: str,
+    driver_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Driver has accepted and is now heading to the pickup point."""
+    result = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = result.scalar_one_or_none()
+    if not trip or trip.driver_id != driver_id:
+        raise HTTPException(status_code=404, detail="Trip not found or not assigned to you")
+    if trip.status != TripStatus.assigned:
+        raise HTTPException(status_code=409, detail=f"Cannot start en-route from status {trip.status}")
+
+    trip.status = TripStatus.en_route
+    trip.driver_en_route_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    await ws_manager.broadcast_dashboard("driver_en_route", {"trip_id": trip.id, "driver_id": driver_id})
+    return {"ok": True}
+
+
+@router.post("/trip/{trip_id}/noshow")
+async def driver_mark_noshow(
+    trip_id: str,
+    driver_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Driver arrived at pickup but customer did not appear."""
+    result = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = result.scalar_one_or_none()
+    if not trip or trip.driver_id != driver_id:
+        raise HTTPException(status_code=404, detail="Trip not found or not assigned to you")
+    if trip.status not in (TripStatus.arrived, TripStatus.assigned, TripStatus.en_route):
+        raise HTTPException(status_code=409, detail=f"Cannot mark no-show from status {trip.status}")
+
+    trip.status = TripStatus.noshow
+    trip.noshow_at = datetime.now(timezone.utc)
+
+    driver_result = await db.execute(select(Driver).where(Driver.id == driver_id))
+    driver = driver_result.scalar_one_or_none()
+    if driver:
+        driver.status = DriverStatus.online
+        await set_driver_status(driver.id, DriverStatus.online.value)
+
+    await db.commit()
+    await ws_manager.broadcast_dashboard("trip_noshow", {"trip_id": trip.id, "driver_id": driver_id})
     return {"ok": True}

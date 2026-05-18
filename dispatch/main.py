@@ -19,6 +19,7 @@ from routes.dispatch import router as dispatch_router
 from routes.driver import router as driver_router
 from routes.dashboard import router as dashboard_router
 from services.timeout_worker import run_timeout_worker
+from services.scheduler import run_prebook_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _timeout_task: asyncio.Task | None = None
+_prebook_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
@@ -35,17 +37,19 @@ async def lifespan(app: FastAPI):
     # ── Startup ──────────────────────────────────────────────────────────
     logger.info("Starting Captain Taxi Dispatch Service")
     await create_tables()
-    global _timeout_task
+    global _timeout_task, _prebook_task
     _timeout_task = asyncio.create_task(run_timeout_worker())
-    logger.info("Timeout worker launched")
+    _prebook_task = asyncio.create_task(run_prebook_scheduler())
+    logger.info("Background workers launched (timeout, pre-booking scheduler)")
     yield
     # ── Shutdown ─────────────────────────────────────────────────────────
-    if _timeout_task:
-        _timeout_task.cancel()
-        try:
-            await _timeout_task
-        except asyncio.CancelledError:
-            pass
+    for task in (_timeout_task, _prebook_task):
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     await close_redis()
     logger.info("Dispatch service shut down cleanly")
 
