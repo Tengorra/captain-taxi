@@ -171,11 +171,101 @@ class DriverCreate(BaseModel):
 
 
 class DriverUpdate(BaseModel):
+    # Mirror DriverCreate for editability — every field optional, only the
+    # ones the client sends are touched.
+    # Identity
     name: Optional[str] = None
-    phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    aka: Optional[str] = None
+    gender: Optional[str] = None
+    sex: Optional[str] = None
+    ethnicity: Optional[str] = None
+    address: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
+    mobile: Optional[str] = None
+    mobile_phone: Optional[str] = None
+    other_phone: Optional[str] = None
     city: Optional[str] = None
+    status: Optional[str] = None
+    is_active_flag: Optional[bool] = None
+    is_deleted: Optional[bool] = None
+    driver_type: Optional[str] = None
+    transporter: Optional[bool] = None
+    # Auth
+    login_username: Optional[str] = None
+    login_password: Optional[str] = None
+    # Payment card
+    payment_card_last4: Optional[str] = None
+    payment_card_expiry: Optional[str] = None
+    # Licensing
+    licence_number: Optional[str] = None
+    licence_expiry: Optional[str] = None
+    badge_number: Optional[str] = None
+    badge_expiry: Optional[str] = None
+    badge_type: Optional[str] = None
+    school_badge_expiry: Optional[str] = None
+    ni_number: Optional[str] = None
+    tax_number: Optional[str] = None
+    pvg_disclosure: Optional[str] = None
+    # Vehicle
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_plate: Optional[str] = None
+    vehicle_color: Optional[str] = None
+    vehicle_year: Optional[int] = None
+    vehicle_ref: Optional[str] = None
+    # Attributes
+    attr_pets: Optional[bool] = None
+    attr_uniformed: Optional[bool] = None
+    attr_topman: Optional[bool] = None
+    attr_accept_discount: Optional[bool] = None
+    attr_accept_account: Optional[bool] = None
+    attr_accept_fixed_fares: Optional[bool] = None
+    attr_accept_cash_work: Optional[bool] = None
+    # Custom fields
+    police_record: Optional[str] = None
+    police_record_2: Optional[str] = None
+    breathalyser_enabled: Optional[bool] = None
+    # Device
+    phone_assist: Optional[bool] = None
+    phone_locked: Optional[bool] = None
+    imei_udid: Optional[str] = None
+    # Invoicing / shifts
+    frequency: Optional[str] = None
+    frequency_day: Optional[int] = None
+    invoice_footer: Optional[str] = None
+    shift_reporting: Optional[bool] = None
+    payment_period: Optional[int] = None
+    payment_terms: Optional[int] = None
+    output_preference: Optional[str] = None
+    si_id: Optional[str] = None
+    # Payments / VAT
     commission_rate: Optional[float] = None
+    payment_type: Optional[str] = None
+    payment_on_day: Optional[str] = None
+    distribution: Optional[str] = None
+    apply_vat: Optional[bool] = None
+    vat_rate: Optional[float] = None
+    balance: Optional[float] = None
+    exclude_booking_fee: Optional[bool] = None
+    auto_post: Optional[str] = None
+    # Bank
+    bank_payment_ref: Optional[str] = None
+    use_sepa: Optional[bool] = None
+    bank_name: Optional[str] = None
+    bank_account_name: Optional[str] = None
+    sort_code: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    # Fatigue
+    fatigue_max_work_hours: Optional[int] = None
+    fatigue_min_rest_hours: Optional[int] = None
+    fatigue_exceed_job_pct: Optional[int] = None
+    fatigue_send_alert_pct: Optional[int] = None
+    # Sites — when supplied, completely replaces existing assignments
+    sites: Optional[list[SiteAssignment]] = None
+    # Misc
     performance_score: Optional[float] = None
     notes: Optional[str] = None
 
@@ -443,11 +533,94 @@ def update_driver(driver_id: str, body: DriverUpdate, db: Session = Depends(get_
     driver = db.query(Driver).filter_by(id=driver_id).first()
     if not driver:
         raise HTTPException(404, "Driver not found")
-    for field, val in body.model_dump(exclude_none=True).items():
-        setattr(driver, field, val)
+
+    data = body.model_dump(exclude_unset=True)
+
+    # Pull aliases / fields needing transforms out before the generic loop so
+    # they don't double-assign.
+    if "login_password" in data:
+        pw = data.pop("login_password")
+        driver.login_password_hash = _hash_password(pw)
+    if "mobile_phone" in data and "mobile" not in data:
+        data["mobile"] = data.pop("mobile_phone")
+    else:
+        data.pop("mobile_phone", None)
+    if "sex" in data and "gender" not in data:
+        data["gender"] = data.pop("sex")
+    else:
+        data.pop("sex", None)
+    if "tax_number" in data and "ni_number" not in data:
+        data["ni_number"] = data.pop("tax_number")
+    else:
+        data.pop("tax_number", None)
+
+    # Column-name aliases — the iCabbi UI calls these `badge_*` / `licence_*`
+    # but our DB stores them under the legacy taxi/license names.
+    if "licence_number" in data:
+        driver.license_number = data.pop("licence_number")
+    if "licence_expiry" in data:
+        driver.license_expiry = _parse_date(data.pop("licence_expiry"))
+    if "badge_number" in data:
+        driver.taxi_license_number = data.pop("badge_number")
+    if "badge_expiry" in data:
+        driver.taxi_license_expiry = _parse_date(data.pop("badge_expiry"))
+    if "school_badge_expiry" in data:
+        driver.school_badge_expiry = _parse_date(data.pop("school_badge_expiry"))
+    if "payment_card_expiry" in data:
+        driver.payment_card_expiry = _parse_date(data.pop("payment_card_expiry"))
+
+    # Site replacement — atomic: drop everything, re-create from the new list.
+    if "sites" in data:
+        sites = data.pop("sites") or []
+        db.query(DriverSite).filter(DriverSite.driver_id == driver.id).delete()
+        primary_seen = False
+        for s in sites:
+            code = (s.get("site_code") or "").upper().strip()
+            if not code:
+                continue
+            is_primary = bool(s.get("is_primary")) and not primary_seen
+            if is_primary:
+                primary_seen = True
+            db.add(DriverSite(
+                id=str(uuid.uuid4()),
+                driver_id=driver.id,
+                site_code=code,
+                site_name=SITE_REGISTRY.get(code, code),
+                assigned=bool(s.get("assigned", True)),
+                is_primary=is_primary,
+            ))
+
+    # Vehicle quick-edit — patch the active vehicle row if one exists.
+    veh_keys = {"vehicle_make", "vehicle_model", "vehicle_plate",
+                "vehicle_color", "vehicle_year"}
+    veh_data = {k: data.pop(k) for k in list(data) if k in veh_keys}
+    if veh_data:
+        vehicle = _get_vehicle(driver.id, db)
+        if vehicle:
+            if "vehicle_plate" in veh_data and veh_data["vehicle_plate"]:
+                vehicle.plate = veh_data["vehicle_plate"].upper().strip()
+            if "vehicle_make" in veh_data:
+                vehicle.make = veh_data["vehicle_make"]
+            if "vehicle_model" in veh_data:
+                vehicle.model = veh_data["vehicle_model"]
+            if "vehicle_color" in veh_data:
+                vehicle.color = veh_data["vehicle_color"]
+            if "vehicle_year" in veh_data and veh_data["vehicle_year"]:
+                vehicle.year = veh_data["vehicle_year"]
+
+    # status alias (UI sends "pending" / "offline" — translate to internal)
+    if "status" in data and data["status"] in STATUS_MAP:
+        data["status"] = STATUS_MAP[data["status"]]
+
+    # Remaining fields are 1:1 with column names.
+    for field, val in data.items():
+        if hasattr(driver, field):
+            setattr(driver, field, val)
+
     driver.updated_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "driver": _driver_summary(driver, db)}
+    db.refresh(driver)
+    return {"ok": True, "driver": _driver_detail(driver, db)}
 
 
 @router.post("/{driver_id}/suspend")

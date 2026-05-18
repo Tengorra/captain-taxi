@@ -36,8 +36,11 @@ export const api = {
     return request<import('../types').Driver[]>(`/drivers/${q ? '?' + q : ''}`)
   },
   getDriver: (id: string) => request<import('../types').Driver>(`/drivers/${id}`),
-  updateDriver: (id: string, data: Partial<import('../types').Driver>) =>
-    request(`/drivers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateDriver: (id: string, data: Record<string, unknown>) =>
+    request<{ ok: boolean; driver: import('../types').Driver }>(
+      `/drivers/${id}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
   suspendDriver: (id: string, reason: string) =>
     request(`/drivers/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
   activateDriver: (id: string) => request(`/drivers/${id}/activate`, { method: 'POST' }),

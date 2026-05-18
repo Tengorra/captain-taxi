@@ -4,6 +4,7 @@ import Overview from './pages/Overview'
 import Dispatch from './pages/Dispatch'
 import Drivers from './pages/Drivers'
 import DriverProfile from './pages/DriverProfile'
+import Vehicles from './pages/Vehicles'
 import Accounts from './pages/Accounts'
 import Compliance from './pages/Compliance'
 import Reports from './pages/Reports'
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="dispatch" element={<Dispatch />} />
           <Route path="drivers" element={<Drivers />} />
           <Route path="drivers/:id" element={<DriverProfile />} />
+          <Route path="vehicles" element={<Vehicles />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="compliance" element={<Compliance />} />
           <Route path="reports" element={<Reports />} />
