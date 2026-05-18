@@ -20,11 +20,30 @@ class DriverCreate(BaseModel):
     email: EmailStr
     phone: str  # E.164 e.g. +13061234567
     city: City
+    # Identity extras
+    address: Optional[str] = None
+    aka: Optional[str] = None
+    sex: Optional[str] = None
+    # Vehicle
     vehicle_make: Optional[str] = None
     vehicle_model: Optional[str] = None
     vehicle_year: Optional[int] = None
     vehicle_plate: Optional[str] = None
     vehicle_color: Optional[str] = None
+    # Licence / badge (iCabbi import)
+    badge_number: Optional[str] = None
+    badge_expiry: Optional[str] = None   # YYYY-MM-DD string
+    badge_type: Optional[str] = None
+    licence_number: Optional[str] = None
+    licence_expiry: Optional[str] = None  # YYYY-MM-DD string
+    # Business
+    icabbi_ref: Optional[str] = None
+    notes: Optional[str] = None
+    commission_rate: Optional[float] = 0.30
+    driver_type: Optional[str] = "regular"
+    payment_type: Optional[str] = "cash"
+    # Allow setting status on bulk import (default remains ONBOARDING)
+    status: Optional[DriverStatus] = None
 
 
 class DriverResponse(BaseModel):
@@ -50,7 +69,6 @@ class AgentTaskRequest(BaseModel):
 @router.post("/", response_model=DriverResponse, status_code=status.HTTP_201_CREATED)
 async def register_driver(payload: DriverCreate, db: AsyncSession = Depends(get_db)):
     """Register a new driver and kick off onboarding."""
-    # Check for duplicate email/phone
     existing = await db.execute(
         select(Driver).where(
             (Driver.email == payload.email) | (Driver.phone == payload.phone)
@@ -59,7 +77,26 @@ async def register_driver(payload: DriverCreate, db: AsyncSession = Depends(get_
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Driver with this email or phone already exists.")
 
-    driver = Driver(**payload.model_dump())
+    data = payload.model_dump(exclude={"status", "badge_expiry", "licence_expiry"})
+
+    # Parse date strings → datetime
+    def _parse_date(val: Optional[str]) -> Optional[datetime]:
+        if not val:
+            return None
+        try:
+            return datetime.strptime(val, "%Y-%m-%d")
+        except ValueError:
+            return None
+
+    data["badge_expiry"] = _parse_date(payload.badge_expiry)
+    data["licence_expiry"] = _parse_date(payload.licence_expiry)
+
+    # Set initial status (import can override to active/suspended)
+    if payload.status:
+        data["status"] = payload.status
+    # else leave as model default (ONBOARDING)
+
+    driver = Driver(**data)
     db.add(driver)
     await db.flush()
     await initialize_onboarding(driver, db)

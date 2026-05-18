@@ -95,6 +95,20 @@ class Driver(Base):
     vehicle_plate: Mapped[Optional[str]] = mapped_column(String(20))
     vehicle_color: Mapped[Optional[str]] = mapped_column(String(50))
 
+    # iCabbi import fields
+    icabbi_ref: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    aka: Mapped[Optional[str]] = mapped_column(String(100))
+    sex: Mapped[Optional[str]] = mapped_column(String(10))
+    badge_number: Mapped[Optional[str]] = mapped_column(String(50))
+    badge_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    badge_type: Mapped[Optional[str]] = mapped_column(String(50))
+    licence_number: Mapped[Optional[str]] = mapped_column(String(50))
+    licence_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    commission_rate: Mapped[Optional[float]] = mapped_column(Float, default=0.30)
+    driver_type: Mapped[Optional[str]] = mapped_column(String(50), default="regular")
+    payment_type: Mapped[Optional[str]] = mapped_column(String(50), default="cash")
+
     # Bank (store only last 4 + transit/institution for display; full info encrypted)
     bank_institution: Mapped[Optional[str]] = mapped_column(String(50))
     bank_transit: Mapped[Optional[str]] = mapped_column(String(20))

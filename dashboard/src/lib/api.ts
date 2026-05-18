@@ -47,7 +47,36 @@ export const api = {
     request(`/drivers/${id}/message`, { method: 'POST', body: JSON.stringify({ message }) }),
   driverTrips: (id: string) => request<import('../types').Trip[]>(`/drivers/${id}/trips`),
   driverDocuments: (id: string) => request<import('../types').DriverDocument[]>(`/drivers/${id}/documents`),
-  createDriver: (data: { name: string; phone: string; email?: string; city: string; vehicle_plate?: string; vehicle_model?: string }) =>
+  createDriver: (data: {
+    first_name: string
+    last_name: string
+    email: string
+    phone: string
+    city: string
+    // Identity extras
+    address?: string
+    aka?: string
+    sex?: string
+    // Vehicle
+    vehicle_make?: string
+    vehicle_model?: string
+    vehicle_year?: number
+    vehicle_plate?: string
+    vehicle_color?: string
+    // Licence / badge
+    badge_number?: string
+    badge_expiry?: string   // YYYY-MM-DD
+    badge_type?: string
+    licence_number?: string
+    licence_expiry?: string // YYYY-MM-DD
+    // Business
+    icabbi_ref?: string
+    notes?: string
+    commission_rate?: number
+    driver_type?: string
+    payment_type?: string
+    status?: string
+  }) =>
     request<import('../types').Driver>('/drivers/', { method: 'POST', body: JSON.stringify(data) }),
 
   // Escalations

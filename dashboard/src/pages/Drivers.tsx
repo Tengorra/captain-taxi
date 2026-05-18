@@ -28,19 +28,19 @@ export default function Drivers() {
   })
 
   const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; dupes: number } | null>(null)
   const [importError, setImportError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [newDriver, setNewDriver] = useState({
-    phone: '', vehicle_model: '', vehicle_plate: '',
+    phone: '', vehicle_make: '', vehicle_model: '', vehicle_plate: '',
     status: 'pending', driver_type: 'regular', city: 'saskatoon',
     first_name: '', last_name: '', aka: '', address: '',
     email: '', mobile_phone: '', other_phone: '', sex: 'male',
     badge_number: '', badge_expiry: '', badge_type: 'hackney',
     licence_number: '', licence_expiry: '', tax_number: '',
     commission_pct: '30', payment_on: 'sunday', payment_type: 'cash',
-    bank_name: '', bank_account_number: '', sort_code: '',
+    bank_name: '', bank_account_number: '', sort_code: '', notes: '',
   })
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError]     = useState('')
@@ -127,6 +127,8 @@ export default function Drivers() {
 
       let success = 0
       let failed = 0
+      let skippedDupe = 0
+      const errors: string[] = []
 
       for (let i = 1; i < lines.length; i++) {
         const cols = parseRow(lines[i])
@@ -137,51 +139,72 @@ export default function Drivers() {
         const phone     = get('MOBILE') || get('Phone')
         const refNum    = get('REF')
 
-        if (!firstName && !lastName && !refNum) { failed++; continue }
+        // Skip completely empty rows
+        if (!firstName && !lastName && !refNum) continue
+
+        // Phone is required — skip rows without one
+        if (!phone) {
+          errors.push(`Row ${i}: ${firstName} ${lastName} — no phone, skipped`)
+          failed++
+          continue
+        }
 
         const isActiveDriver = get('ACTIVE') === '1'
         const isDeleted      = get('DELETED') === '1'
 
-        let status = 'offline'
-        if (isDeleted) status = 'suspended'
-        else if (isActiveDriver) status = 'active'
+        // Map iCabbi flags → backend DriverStatus enum values
+        let importStatus: 'active' | 'suspended' | 'inactive' = 'inactive'
+        if (isDeleted) importStatus = 'suspended'
+        else if (isActiveDriver) importStatus = 'active'
 
         const badgeExpiryRaw   = get('PSV EXPIRY')
-        const badgeExpiry      = badgeExpiryRaw.includes('1969') ? '' : parseDate(badgeExpiryRaw)
+        const badgeExpiry      = badgeExpiryRaw && !badgeExpiryRaw.includes('1969') ? parseDate(badgeExpiryRaw) : ''
         const licenceExpiryRaw = get('Header.licence_expiry')
-        const licenceExpiry    = licenceExpiryRaw.includes('1969') ? '' : parseDate(licenceExpiryRaw)
+        const licenceExpiry    = licenceExpiryRaw && !licenceExpiryRaw.includes('1969') ? parseDate(licenceExpiryRaw) : ''
 
         const address = get('Address')
         const city    = address.toLowerCase().includes('regina') ? 'regina' : 'saskatoon'
 
+        // Generate placeholder email for drivers without one (email is required on backend)
+        const rawEmail = get('Email')
+        const email = rawEmail || `noemail.${refNum || phone.replace(/\D/g, '')}@captaintaxi.local`
+
         try {
-          await (api as any).createDriver({
-            name:           `${firstName} ${lastName}`.trim() || `Driver ${refNum}`,
-            first_name:     firstName,
-            last_name:      lastName,
-            phone:          phone,
-            email:          get('Email'),
-            address:        address,
-            badge_number:   get('BADGE/PSV'),
-            badge_expiry:   badgeExpiry,
-            badge_type:     (get('BADGE TYPE') || 'hackney').toLowerCase().replace(' ', '_'),
-            licence_number: get('LICENCE'),
-            licence_expiry: licenceExpiry,
-            is_active:      isActiveDriver && !isDeleted,
-            status:         status,
-            notes:          get('NOTES'),
-            city:           city,
+          await api.createDriver({
+            first_name:      firstName,
+            last_name:       lastName,
+            phone:           phone,
+            email:           email,
+            city:            city,
+            address:         address || undefined,
+            aka:             get('AKA') || undefined,
+            sex:             (get('GENDER') || 'M').toUpperCase() === 'F' ? 'female' : 'male',
+            badge_number:    get('BADGE/PSV') || undefined,
+            badge_expiry:    badgeExpiry || undefined,
+            badge_type:      get('BADGE TYPE') ? get('BADGE TYPE').toLowerCase().replace(' ', '_') : undefined,
+            licence_number:  get('LICENCE') || undefined,
+            licence_expiry:  licenceExpiry || undefined,
+            notes:           get('NOTES') || undefined,
+            icabbi_ref:      refNum || undefined,
             commission_rate: 0.30,
-            driver_type:    'regular',
-            payment_type:   (get('PAYMENT TYPE') || 'cash').toLowerCase(),
-            aka:            get('AKA'),
-            sex:            (get('GENDER') || 'M').toUpperCase() === 'F' ? 'female' : 'male',
+            driver_type:     'regular',
+            payment_type:    get('PAYMENT TYPE') ? get('PAYMENT TYPE').toLowerCase() : 'cash',
+            status:          importStatus,
           })
           success++
-        } catch { failed++ }
+        } catch (err: any) {
+          const msg = err?.message || ''
+          if (msg.includes('409') || msg.toLowerCase().includes('already exists')) {
+            skippedDupe++
+          } else {
+            errors.push(`Row ${i}: ${firstName} ${lastName} — ${msg}`)
+            failed++
+          }
+        }
       }
 
-      setImportResult({ success, failed })
+      if (errors.length > 0) console.warn('Import errors:', errors)
+      setImportResult({ success, failed, dupes: skippedDupe })
     } catch (err: any) {
       setImportError(err.message || 'Import failed. Please check the CSV file.')
     } finally {
@@ -199,21 +222,38 @@ export default function Drivers() {
     setAddError('')
     setAddSuccess(false)
     try {
-      await (api as any).createDriver({
-        ...newDriver,
-        name: `${newDriver.first_name} ${newDriver.last_name}`.trim(),
-        commission_rate: Number(newDriver.commission_pct) / 100,
+      await api.createDriver({
+        first_name:      newDriver.first_name,
+        last_name:       newDriver.last_name,
+        email:           newDriver.email,
+        phone:           newDriver.phone,
+        city:            newDriver.city,
+        address:         newDriver.address || undefined,
+        aka:             newDriver.aka || undefined,
+        sex:             newDriver.sex || undefined,
+        vehicle_make:    newDriver.vehicle_make || undefined,
+        vehicle_model:   newDriver.vehicle_model || undefined,
+        vehicle_plate:   newDriver.vehicle_plate || undefined,
+        badge_number:    newDriver.badge_number || undefined,
+        badge_expiry:    newDriver.badge_expiry || undefined,
+        badge_type:      newDriver.badge_type || undefined,
+        licence_number:  newDriver.licence_number || undefined,
+        licence_expiry:  newDriver.licence_expiry || undefined,
+        notes:           newDriver.notes || undefined,
+        commission_rate: newDriver.commission_pct ? Number(newDriver.commission_pct) / 100 : undefined,
+        driver_type:     newDriver.driver_type || undefined,
+        payment_type:    newDriver.payment_type || undefined,
       })
       setAddSuccess(true)
       setNewDriver({
-        phone: '', vehicle_model: '', vehicle_plate: '',
+        phone: '', vehicle_make: '', vehicle_model: '', vehicle_plate: '',
         status: 'pending', driver_type: 'regular', city: 'saskatoon',
         first_name: '', last_name: '', aka: '', address: '',
         email: '', mobile_phone: '', other_phone: '', sex: 'male',
         badge_number: '', badge_expiry: '', badge_type: 'hackney',
         licence_number: '', licence_expiry: '', tax_number: '',
         commission_pct: '30', payment_on: 'sunday', payment_type: 'cash',
-        bank_name: '', bank_account_number: '', sort_code: '',
+        bank_name: '', bank_account_number: '', sort_code: '', notes: '',
       })
     } catch (e: any) {
       setAddError(e.message || 'Failed to add driver.')
@@ -340,9 +380,12 @@ export default function Drivers() {
               )}
               {importResult && !importing && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-emerald-400 font-semibold">✅ {importResult.success} imported</span>
+                  <span className="text-emerald-400 font-semibold">{importResult.success} imported</span>
+                  {importResult.dupes > 0 && (
+                    <span className="text-amber-400 font-semibold">· {importResult.dupes} already existed</span>
+                  )}
                   {importResult.failed > 0 && (
-                    <span className="text-red-400 font-semibold">· ❌ {importResult.failed} skipped</span>
+                    <span className="text-red-400 font-semibold">· {importResult.failed} failed (check console)</span>
                   )}
                 </div>
               )}
