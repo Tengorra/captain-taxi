@@ -113,6 +113,7 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - **FIX (session 8):** `reassign_trip` now releases the previous assignment lock before re-acquiring; timeout-driven reassignment was failing silently because the 120s lock outlived the 90s timeout.
 - **FIX (session 8):** `/driver/trip/{id}/pickup` correctly backfills `driver_en_route_at` when the en_route step was skipped (previous check was tautological after the status mutation).
 - **NEW (session 8):** Alembic migration `002_dispatch_module_session.py` — adds enum values `noshow / parked / dropping / bidding`, creates `bookingsource` enum, adds Trip columns `customer_email / via_address / instructions / site / priority / noshow_at / scheduled_for / booking_source`, plus helpful indexes. Idempotent (safe on DBs bootstrapped via `create_all`).
+- **NEW (session 8):** `scripts/test_dispatch_session8.py` — focused E2E covering only the new session-8 features (decline+reassign, en_route transition, driver-side noshow, booking_source filter, driver WS trip_assigned, dispatcher-cancel → driver WS, pre-booking scheduler dispatch). Pass `--skip-scheduler` to skip the 75s scheduler wait.
 
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
