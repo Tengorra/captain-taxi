@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # SendGrid
     sendgrid_api_key: str = ""
-    email_from: str = "accounts@captaintaxi.ca"
+    email_from: str = "accounts@captain.taxi"
     email_from_name: str = "Captain Taxi Accounts"
 
     # Business

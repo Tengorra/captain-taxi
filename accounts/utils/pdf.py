@@ -53,7 +53,7 @@ def generate_invoice_pdf(invoice, account) -> bytes:
     story.append(HRFlowable(width="100%", thickness=2, color=ACCENT_COLOR, spaceAfter=8))
 
     # ── Company info + Bill To ──
-    from_lines = "Captain Taxi Ltd.<br/>Saskatoon & Regina, SK, Canada<br/>accounts@captaintaxi.ca<br/>306-242-0000"
+    from_lines = "Captain Taxi Ltd.<br/>Saskatoon & Regina, SK, Canada<br/>accounts@captain.taxi<br/>306-242-0000"
     to_lines = (
         f"<b>Bill To:</b><br/>{account.name}<br/>"
         f"{account.contact_name or ''}<br/>"
@@ -126,7 +126,7 @@ def generate_invoice_pdf(invoice, account) -> bytes:
     story.append(Spacer(1, 8))
     story.append(Paragraph(
         "<b>Payment Instructions</b><br/>"
-        "e-Transfer: accounts@captaintaxi.ca  |  "
+        "e-Transfer: accounts@captain.taxi  |  "
         "Cheque payable to: Captain Taxi Ltd.<br/>"
         "Questions? 306-242-0000 (Saskatoon) · 306-775-2222 (Regina)",
         small,

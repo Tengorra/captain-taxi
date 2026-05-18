@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@captaintaxi.ca")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@captain.taxi")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL", "")
 AMARA_EMAIL = os.getenv("AMARA_EMAIL", "")
 

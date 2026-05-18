@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: Optional[str] = None
     smtp_password: Optional[str] = None
-    from_email: str = "dispatch@captaintaxi.ca"
+    from_email: str = "dispatch@captain.taxi"
     from_name: str = "Captain Taxi"
 
     # App
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     owner_phone: str = "+13068811542"
     amara_phone: str = "+13068500760"
     owner_name: str = "Captain Taxi Owner"
-    base_url: str = "https://captaintaxi.ca"
+    base_url: str = "https://captain.taxi"
     secret_key: str = "change-me-in-production"
 
     # Coverage requirements

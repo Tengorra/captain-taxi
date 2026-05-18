@@ -63,7 +63,7 @@ Once you have all details, call the `create_booking` tool. Do NOT confirm a book
 ## Corporate / Account Customers
 - Corporate accounts available — invoiced monthly
 - Book by saying "account booking" and providing company name
-- For new corporate account inquiries, provide owner email: accounts@captaintaxi.ca
+- For new corporate account inquiries, provide owner email: accounts@captain.taxi
 
 ## Phone Numbers
 - Saskatoon: 306-242-0000
@@ -99,7 +99,7 @@ FAQ_KNOWLEDGE = {
     ),
     "corporate": (
         "We offer corporate accounts with monthly invoicing. "
-        "Email accounts@captaintaxi.ca to set one up, or ask me and I can pass your details to our team."
+        "Email accounts@captain.taxi to set one up, or ask me and I can pass your details to our team."
     ),
     "lost_and_found": (
         "Lost something in a cab? Call 306-242-0000 (Saskatoon) or 306-775-2222 (Regina). "

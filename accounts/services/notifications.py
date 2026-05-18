@@ -113,7 +113,7 @@ TOTAL:      ${invoice.total:.2f}
 Due Date:   {invoice.due_date.strftime('%B %d, %Y') if invoice.due_date else 'Net 30'}
 
 Payment options:
-• EFT / e-Transfer: accounts@captaintaxi.ca
+• EFT / e-Transfer: accounts@captain.taxi
 • Cheque payable to: Captain Taxi Ltd.
 
 For questions, reply to this email or call 306-242-0000 (Saskatoon) / 306-775-2222 (Regina).
@@ -149,7 +149,7 @@ Due Date:   {invoice.due_date}
 
 {"We kindly ask that you arrange payment immediately to avoid service interruption." if escalated else "Please arrange payment at your earliest convenience."}
 
-To pay: e-Transfer to accounts@captaintaxi.ca or call 306-242-0000.
+To pay: e-Transfer to accounts@captain.taxi or call 306-242-0000.
 
 Captain Taxi Accounts
 """

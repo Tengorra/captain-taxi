@@ -63,9 +63,9 @@ systemctl enable captain-taxi-customer
 # ── Nginx ─────────────────────────────────────────────────────────────────────
 echo "Configuring nginx…"
 cp "$APP_DIR/customer/deploy/nginx.conf" \
-    /etc/nginx/sites-available/customer.captaintaxi.ca
-ln -sf /etc/nginx/sites-available/customer.captaintaxi.ca \
-       /etc/nginx/sites-enabled/customer.captaintaxi.ca
+    /etc/nginx/sites-available/customer.captain.taxi
+ln -sf /etc/nginx/sites-available/customer.captain.taxi \
+       /etc/nginx/sites-enabled/customer.captain.taxi
 nginx -t && systemctl reload nginx
 
 echo ""
@@ -73,9 +73,9 @@ echo "=== Installation complete ==="
 echo ""
 echo "Next steps:"
 echo "  1. Copy .env.example to $APP_DIR/.env and fill in all values"
-echo "  2. Run: certbot --nginx -d customer.captaintaxi.ca"
+echo "  2. Run: certbot --nginx -d customer.captain.taxi"
 echo "  3. Run: systemctl start captain-taxi-customer"
 echo "  4. Run: $APP_DIR/venv/bin/python -m captain_taxi.customer.vapi.setup"
-echo "  5. Configure Twilio SMS webhook: https://customer.captaintaxi.ca/webhook/twilio/sms"
-echo "  6. Configure Twilio WhatsApp webhook: https://customer.captaintaxi.ca/webhook/twilio/whatsapp"
+echo "  5. Configure Twilio SMS webhook: https://customer.captain.taxi/webhook/twilio/sms"
+echo "  6. Configure Twilio WhatsApp webhook: https://customer.captain.taxi/webhook/twilio/whatsapp"
 echo ""
