@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-05-17 (session 7)
+**Last updated:** 2026-05-18 (session 8)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -103,6 +103,16 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - **NEW (session 5):** `POST /dispatch/trip/{id}/noshow` endpoint — DONE
 - **NEW (session 5):** `DriverCreate` accepts `status`, `is_active`, `rating` for seeding — DONE
 - **NEW (session 5):** Queue endpoint returns all 7 tabs: dispatch/pre_booked/booked/in_progress/completed/cancelled/noshow — DONE
+- **NEW (session 8):** Pre-booking scheduler — `dispatch/services/scheduler.py` wakes every 30s and dispatches pre-bookings 15min before their `scheduled_for` time. Wired into `main.py` lifespan alongside the timeout worker.
+- **NEW (session 8):** Driver-side lifecycle endpoints completed:
+  - `POST /driver/trip/{id}/decline` — explicit decline, frees driver, immediate reassign
+  - `POST /driver/trip/{id}/en_route` — transition assigned → en_route
+  - `POST /driver/trip/{id}/noshow` — driver-side no-show (from arrived/assigned/en_route)
+- **NEW (session 8):** Driver WS now receives `trip_cancelled` (dispatcher cancelled) and `trip_revoked` (timeout) events so the driver app can clear its trip popup.
+- **NEW (session 8):** `GET /dispatch/trips` accepts `booking_source` filter — useful for isolating bot-originated phone calls.
+- **FIX (session 8):** `reassign_trip` now releases the previous assignment lock before re-acquiring; timeout-driven reassignment was failing silently because the 120s lock outlived the 90s timeout.
+- **FIX (session 8):** `/driver/trip/{id}/pickup` correctly backfills `driver_en_route_at` when the en_route step was skipped (previous check was tautological after the status mutation).
+- **NEW (session 8):** Alembic migration `002_dispatch_module_session.py` — adds enum values `noshow / parked / dropping / bidding`, creates `bookingsource` enum, adds Trip columns `customer_email / via_address / instructions / site / priority / noshow_at / scheduled_for / booking_source`, plus helpful indexes. Idempotent (safe on DBs bootstrapped via `create_all`).
 
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
@@ -173,4 +183,5 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 8 | 2026-05-18 | Dispatch module completion: pre-booking scheduler, driver-side decline/en_route/noshow endpoints, dispatcher-cancel → driver WS notify, timeout → `trip_revoked` driver event, reassignment lock-release fix, `pickup` en_route backfill fix, `booking_source` filter on `/dispatch/trips`, Alembic migration `002` (idempotent) capturing all session-5 schema additions. Inbound surface for the phone bot is now `POST /dispatch/trip` with `booking_source: "phone"` — bot integrates against a stable, complete contract. |
 | 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |

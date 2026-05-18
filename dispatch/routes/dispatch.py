@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models.trip import Trip, TripStatus
+from models.trip import Trip, TripStatus, BookingSource
 from models.driver import Driver, DriverStatus
 from schemas.trip import TripCreate, TripResponse, TripUpdate, TripCancelRequest, TripReassignRequest
 from services.assignment_engine import assign_trip, reassign_trip
@@ -89,6 +89,7 @@ async def get_trip(trip_id: str, db: AsyncSession = Depends(get_db)):
 async def list_trips(
     status: TripStatus | None = None,
     city: str | None = None,
+    booking_source: BookingSource | None = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -98,6 +99,8 @@ async def list_trips(
         stmt = stmt.where(Trip.status == status)
     if city:
         stmt = stmt.where(Trip.city == city.lower())
+    if booking_source:
+        stmt = stmt.where(Trip.booking_source == booking_source)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -138,6 +141,8 @@ async def cancel_trip(
     if trip.status in (TripStatus.completed, TripStatus.cancelled):
         raise HTTPException(status_code=409, detail="Trip already closed")
 
+    notified_driver_id = trip.driver_id
+
     # Free the driver if one was assigned
     if trip.driver_id:
         driver_result = await db.execute(select(Driver).where(Driver.id == trip.driver_id))
@@ -160,6 +165,12 @@ async def cancel_trip(
         trip.customer_name,
         payload.reason,
     )
+    if notified_driver_id:
+        await ws_manager.notify_driver(
+            notified_driver_id,
+            "trip_cancelled",
+            {"trip_id": trip.id, "reason": payload.reason},
+        )
     await ws_manager.broadcast_dashboard("trip_cancelled", {"trip_id": trip.id, "reason": payload.reason})
     return trip
 
