@@ -325,3 +325,40 @@ export interface ChartPoint {
 export interface AppSettings {
   [key: string]: { value: string; description: string }
 }
+
+// ── BOT (live calls) types ─────────────────────────────────────────────────
+
+export type BotCallEventType =
+  | 'call_started'
+  | 'user_message'
+  | 'assistant_message'
+  | 'tool_call'
+  | 'tool_result'
+  | 'tool_error'
+  | 'tool_unknown'
+  | 'trip_booked'
+  | 'transferred_to_human'
+  | 'auto_transfer'
+  | 'manual_transfer'
+  | 'call_ended'
+  | 'unknown_event'
+  | 'ping'
+
+export interface BotCallEvent {
+  call_id: string
+  event: BotCallEventType
+  ts: number
+  data: Record<string, unknown>
+}
+
+export interface BotCallSummary {
+  call_id: string
+  from?: string
+  started_at?: number
+  ended_at?: number
+  trip_id?: string
+  transferred: boolean
+  last_event: BotCallEventType
+  last_ts: number
+  event_count: number
+}

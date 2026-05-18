@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-05-17 (session 7)
+**Last updated:** 2026-05-18 (session 8)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -15,6 +15,7 @@
 | accounts | 8004 | FastAPI | Invoicing, driver payouts, QuickBooks |
 | compliance | 8005 | FastAPI | Document renewals, auto-suspension sweeps |
 | admin | 8006 | FastAPI + Claude | HR docs, owner digest, WhatsApp query handler |
+| bot | 8007 | FastAPI + ElevenLabs + Twilio | Voice bot dispatcher: takes calls, books trips, live logs, warm-transfer to humans |
 | dashboard | 3000 | React + Vite + Tailwind | Owner-facing UI |
 
 **Infrastructure:** PostgreSQL 16, Redis 7, Nginx reverse proxy, Docker Compose deployment.
@@ -104,6 +105,24 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - **NEW (session 5):** `DriverCreate` accepts `status`, `is_active`, `rating` for seeding — DONE
 - **NEW (session 5):** Queue endpoint returns all 7 tabs: dispatch/pre_booked/booked/in_progress/completed/cancelled/noshow — DONE
 
+### ✅ BOT AGENT (bot/) — NEW (session 8)
+- FastAPI service on port 8007: `bot/main.py` — DONE
+- ElevenLabs Conversational AI webhook (`/webhook/elevenlabs/call`): handles `call.started`, `user_message`, `assistant_message`, `tool_call`, `call.ended` — DONE
+- Client tools exposed to the ElevenLabs agent: `book_trip`, `get_trip_status`, `cancel_trip`, `transfer_to_human` — DONE
+- Dispatch client: `bot/services/dispatch_client.py` (POSTs trips to dispatch:8001 with `booking_source="bot"`) — DONE
+- Warm-transfer to human dispatcher line via Twilio call redirect: `bot/services/transfer.py` — DONE
+- Difficulty detection: phrase triggers + consecutive-tool-failure counter: `bot/services/difficulty.py` — DONE
+- Live call-log broker (Redis pub/sub fanout, per-call history with TTL): `bot/services/log_stream.py` — DONE
+- WebSocket `/calls/stream` (optional `?call_id=` filter, history replay on connect) — DONE
+- Manual controls: `GET /calls/{id}/history`, `POST /calls/{id}/transfer` — DONE
+- docker-compose entry on port 8007; nginx routes `/webhook/elevenlabs/`, `/api/bot/`, `/ws/calls/` — DONE
+- Drop-in agent config: `bot/elevenlabs_agent.json` (system prompt + 4 tool schemas + webhook URL) — paste into the ElevenLabs dashboard
+- Quickstart docs: `bot/README.md`
+- Unit tests for pure-logic helpers: `bot/tests/test_difficulty.py`, `bot/tests/test_dispatch_client.py` — 14 tests passing
+- `.env.example` updated with the bot block (`ELEVENLABS_*`, `HUMAN_DISPATCHER_*`)
+- ⚠️ Still needs real `.env` credentials: `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+- ⚠️ ElevenLabs agent itself must be created in the ElevenLabs dashboard (use `bot/elevenlabs_agent.json` as the spec)
+
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
 - Pages: Overview, Dispatch, Drivers, DriverProfile, Accounts, Compliance, Reports, Settings — all wired to real API
@@ -119,6 +138,7 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
   - Cancel + no-show actions from job board
 - **NEW (session 5):** `api.ts` dispatch methods: createTrip, listTrips, cancelTrip, noShowTrip, reassignTrip, listDispatchDrivers, getDispatchQueue, getDispatchMap, getDispatchStats
 - **NEW (session 5):** `types/index.ts` dispatch types: DispatchTrip, DispatchDriver, DispatchQueue, QueueTrip, MapDriver, DispatchStats, TripCreatePayload
+- **NEW (session 8):** `pages/LiveCalls.tsx` — Live Calls tab consuming bot WebSocket (`/ws/calls/stream`), two-pane layout (recent calls list + per-call event log), auto-reconnect, history replay on reload, manual "transfer to human" button (prompts for Twilio CallSid + city, calls `POST /api/bot/calls/{id}/transfer`). Route `/live-calls` + sidebar entry added. Bot types (`BotCallEvent`, `BotCallSummary`, `BotCallEventType`) + API helpers (`callHistory`, `transferCall`, `callsStreamUrl`) added.
 
 ---
 
@@ -151,6 +171,13 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated)
 - [ ] Load test / stress test with simulated driver fleet
 - [ ] Production deployment on a server (VPS or cloud)
+- [ ] BOT: provision ElevenLabs Conversational AI agent — paste `bot/elevenlabs_agent.json` (prompt + 4 tool schemas) into the ElevenLabs dashboard and wire its webhook to `https://admin.captaintaxi.ca/webhook/elevenlabs/call` ← *needs ElevenLabs account access*
+- [ ] BOT: set `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` in `.env` (template already in `.env.example`) ← *needs secrets*
+- [ ] BOT: point Saskatoon (+13062420000) and Regina (+13067752222) Twilio numbers at the ElevenLabs SIP trunk for this agent ← *needs Twilio + ElevenLabs dashboard access*
+- [ ] BOT: validate warm-transfer end-to-end on a real Twilio call (call.update TwiML redirect) ← *needs a real call*
+- [x] BOT: "Live Calls" dashboard tab — `dashboard/src/pages/LiveCalls.tsx` consumes `/ws/calls/stream`, manual transfer button included
+- [x] BOT: extend `scripts/test_e2e.py` with a bot leg (simulated ElevenLabs webhook → book_trip → dispatch verification → history replay)
+- [x] BOT: agent config template `bot/elevenlabs_agent.json`, quickstart `bot/README.md`, unit tests `bot/tests/` (14 passing), `.env.example` bot block
 
 ---
 
@@ -173,4 +200,5 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 8 | 2026-05-18 | New BOT module (`bot/` on port 8007): ElevenLabs voice dispatcher service. Replaces human dispatchers on inbound calls, books trips into dispatch:8001 via `dispatch_client.py`, streams live call events over WebSocket (`/calls/stream`) using a Redis pub/sub broker, warm-transfers to a human dispatcher number via Twilio call redirect on (a) explicit user phrase ("speak to a human", "manager", …), (b) ≥2 consecutive tool failures, or (c) manual `POST /calls/{id}/transfer`. Files: `bot/main.py`, `bot/config.py`, `bot/routers/{health,elevenlabs,calls,logs}.py`, `bot/services/{dispatch_client,log_stream,difficulty,transfer}.py`, `bot/Dockerfile`, `bot/requirements.txt`. Wired into `docker-compose.yml` and `nginx.conf` (`/webhook/elevenlabs/`, `/api/bot/`, `/ws/calls/`). CLAUDE.md service table updated. Pending: set ElevenLabs + Twilio credentials in `.env`, configure ElevenLabs agent (system prompt + tool schemas matching `book_trip` / `get_trip_status` / `cancel_trip` / `transfer_to_human`), build dashboard tab to consume `/ws/calls/`. |
 | 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |

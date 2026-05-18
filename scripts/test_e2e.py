@@ -12,7 +12,8 @@ Tests the full trip flow plus all new dispatch features:
   7. Pre-booking (scheduled_for in future)
   8. No-show flow (mark arrived → noshow)
   9. Dispatch stats & queue endpoints
-  10. Cleanup
+  10. BOT module: simulated ElevenLabs webhook (call.started → book_trip → call.ended → history replay)
+  11. Cleanup
 
 Prerequisites:
   - docker compose up (all services running)
@@ -34,6 +35,7 @@ import httpx
 # ── Service URLs ────────────────────────────────────────────────────────────
 CUSTOMER_URL  = "http://localhost:8002"
 DISPATCH_URL  = "http://localhost:8001"
+BOT_URL       = "http://localhost:8007"
 
 # Downtown Saskatoon — driver seeded here so they're near the pickup
 DRIVER_LAT = 52.1332
@@ -468,6 +470,141 @@ async def test_driver_statuses(client: httpx.AsyncClient, driver_id: str) -> boo
     return all_ok
 
 
+async def test_bot_module(client: httpx.AsyncClient) -> str | None:
+    """
+    Test 11: BOT module.
+      a) Health check
+      b) Simulate ElevenLabs webhook: call.started → tool_call(book_trip) → call.ended
+      c) Assert dispatch received the trip (booking_source='bot')
+      d) Assert /calls/{id}/history replays the events
+    """
+    step("11 — BOT module (simulated ElevenLabs webhook)")
+
+    # a) Health
+    try:
+        r = await client.get(f"{BOT_URL}/health", timeout=5)
+        if r.status_code == 200:
+            ok("bot :8007 is up")
+        else:
+            fail(f"bot health returned HTTP {r.status_code}")
+            return None
+    except httpx.RequestError as e:
+        fail(f"bot unreachable — {e}")
+        return None
+
+    call_id = f"e2e-bot-{uuid.uuid4().hex[:8]}"
+    caller = "+15550000500"
+
+    # b1) call.started
+    try:
+        r = await client.post(
+            f"{BOT_URL}/webhook/elevenlabs/call",
+            json={
+                "type": "call.started",
+                "conversation_id": call_id,
+                "call": {"from": caller, "sid": "CA_fake_sid"},
+            },
+            timeout=10,
+        )
+        if r.status_code != 200:
+            fail(f"call.started webhook: HTTP {r.status_code} — {r.text[:200]}")
+            return None
+        ok("call.started accepted")
+    except httpx.RequestError as e:
+        fail(f"call.started request error: {e}")
+        return None
+
+    # b2) tool_call book_trip
+    try:
+        r = await client.post(
+            f"{BOT_URL}/webhook/elevenlabs/call",
+            json={
+                "type": "tool_call",
+                "conversation_id": call_id,
+                "tool_name": "book_trip",
+                "parameters": {
+                    "customer_name": "BOT E2E Caller",
+                    "customer_phone": caller,
+                    "pickup_address": "224 Idylwyld Dr N, Saskatoon",
+                    "dropoff_address": "Saskatoon City Hospital, 701 Queen St",
+                    "city": "saskatoon",
+                    "notes": "E2E bot-module test",
+                },
+                "call": {"from": caller, "sid": "CA_fake_sid"},
+            },
+            timeout=15,
+        )
+        if r.status_code != 200:
+            fail(f"tool_call book_trip: HTTP {r.status_code} — {r.text[:200]}")
+            return None
+        body = r.json()
+        result = body.get("result") or {}
+        trip_id = result.get("trip_id") or result.get("id")
+        if not trip_id:
+            fail(f"book_trip returned no trip_id — {body}")
+            return None
+        ok(f"book_trip → trip {trip_id[:8]}…")
+    except httpx.RequestError as e:
+        fail(f"tool_call request error: {e}")
+        return None
+
+    # c) Verify dispatch has the trip with booking_source='bot'
+    try:
+        r = await client.get(f"{DISPATCH_URL}/dispatch/trip/{trip_id}", timeout=10)
+        if r.status_code == 200:
+            trip = r.json()
+            if trip.get("booking_source") == "bot":
+                ok("dispatch shows booking_source='bot'")
+            else:
+                fail(f"booking_source = {trip.get('booking_source')} (expected 'bot')")
+            if trip.get("customer_phone") == caller:
+                ok("dispatch shows correct customer_phone")
+            else:
+                fail(f"phone mismatch: {trip.get('customer_phone')}")
+        else:
+            fail(f"dispatch lookup: HTTP {r.status_code}")
+    except httpx.RequestError as e:
+        fail(f"dispatch lookup error: {e}")
+
+    # b3) call.ended
+    try:
+        r = await client.post(
+            f"{BOT_URL}/webhook/elevenlabs/call",
+            json={
+                "type": "call.ended",
+                "conversation_id": call_id,
+                "summary": "Booked taxi via bot.",
+                "duration_seconds": 42,
+            },
+            timeout=10,
+        )
+        if r.status_code == 200:
+            ok("call.ended accepted")
+        else:
+            fail(f"call.ended: HTTP {r.status_code}")
+    except httpx.RequestError as e:
+        fail(f"call.ended error: {e}")
+
+    # d) History replay
+    try:
+        r = await client.get(f"{BOT_URL}/calls/{call_id}/history", timeout=10)
+        if r.status_code == 200:
+            events = r.json().get("events", [])
+            event_types = {e.get("event") for e in events}
+            required = {"call_started", "tool_call", "tool_result", "trip_booked", "call_ended"}
+            missing = required - event_types
+            if not missing:
+                ok(f"history replay has all expected events ({len(events)} total)")
+            else:
+                fail(f"history missing events: {missing}")
+        else:
+            fail(f"history: HTTP {r.status_code}")
+    except httpx.RequestError as e:
+        fail(f"history error: {e}")
+
+    return trip_id
+
+
 async def cleanup(client: httpx.AsyncClient, driver_id: str, trip_ids: list[str]):
     print(f"\n{CYAN}▶ Cleanup{RESET}")
     for trip_id in trip_ids:
@@ -578,6 +715,19 @@ async def main():
 
         # Bonus: driver statuses
         await test_driver_statuses(client, driver_id)
+
+        # 11. BOT module (skip silently if bot service isn't running)
+        try:
+            r = await client.get(f"{BOT_URL}/health", timeout=2)
+            bot_up = r.status_code == 200
+        except httpx.RequestError:
+            bot_up = False
+        if bot_up:
+            bot_trip_id = await test_bot_module(client)
+            if bot_trip_id:
+                trip_ids.append(bot_trip_id)
+        else:
+            warn("bot :8007 not running — skipping BOT module tests")
 
         # Cleanup
         await cleanup(client, driver_id, trip_ids)
