@@ -200,11 +200,15 @@ export function Receipts() {
       { key: 'sent_to_email', label: 'Send To',     type: 'text' },
     ]}
     columns={[
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', format: v => v ? `#${v}` : '—' },
       { key: 'trip_id', label: 'Trip' },
       { key: 'total', label: 'Total', format: v => `$${Number(v).toFixed(2)}` },
       { key: 'sent_to_email', label: 'Email' },
       { key: 'sent_at', label: 'Sent' },
+      { key: 'id', label: 'PDF', format: v => v
+        ? <a href={api.receiptPdfUrl(v)} target="_blank" rel="noopener"
+             className="text-amber-400 hover:underline">Download</a>
+        : '—' },
     ]}
     list={() => api.listReceipts()}
     create={(d) => api.createReceipt(d)}
@@ -233,6 +237,10 @@ export function OwnerStatements() {
       { key: 'period_end', label: 'To' },
       { key: 'net', label: 'Net', format: v => `$${Number(v).toFixed(2)}` },
       { key: 'status', label: 'Status' },
+      { key: 'id', label: 'PDF', format: v => v
+        ? <a href={api.ownerStatementPdfUrl(v)} target="_blank" rel="noopener"
+             className="text-amber-400 hover:underline">Download</a>
+        : '—' },
     ]}
     list={() => api.listOwnerStatements()}
     create={(d) => api.createOwnerStatement(d)}

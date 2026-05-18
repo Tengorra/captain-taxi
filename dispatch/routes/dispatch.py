@@ -16,6 +16,7 @@ from models.trip import Trip, TripStatus
 from models.driver import Driver, DriverStatus
 from schemas.trip import TripCreate, TripResponse, TripUpdate, TripCancelRequest, TripReassignRequest
 from services.assignment_engine import assign_trip, reassign_trip
+from services.blacklist import check_phone as blacklist_check_phone
 from services.notifications import (
     notify_customer_driver_en_route,
     notify_customer_trip_cancelled,
@@ -48,6 +49,16 @@ async def create_trip(
     is set in the future. Returns the trip object (status may be 'pending' or
     'assigned' depending on driver availability).
     """
+    # Blacklist gate — defense in depth alongside the customer-agent check.
+    phone = getattr(payload, "customer_phone", None)
+    if phone:
+        bl = await blacklist_check_phone(phone)
+        if bl.get("blocked"):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Phone {phone} is blocked: {bl.get('reason', 'no reason given')}",
+            )
+
     trip = Trip(**payload.model_dump())
     db.add(trip)
     await db.flush()  # get the ID before assignment

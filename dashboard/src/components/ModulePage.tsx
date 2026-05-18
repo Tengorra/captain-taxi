@@ -15,7 +15,7 @@ export interface ModulePageProps {
   title: string
   description?: string
   fields: FieldDef[]
-  columns: { key: string; label: string; format?: (v: any) => string }[]
+  columns: { key: string; label: string; format?: (v: any) => React.ReactNode }[]
   list: () => Promise<any[]>
   create: (data: Record<string, unknown>) => Promise<any>
   remove?: (id: number) => Promise<any>

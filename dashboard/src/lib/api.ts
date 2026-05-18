@@ -291,6 +291,20 @@ export const api = {
   markStatementPaid: (id: number) =>
     request(`/owner-statements/${id}/mark-paid`, { method: 'POST' }),
 
+  // PDF downloads
+  receiptPdfUrl: (id: number) => `${BASE}/receipts/${id}/pdf`,
+  ownerStatementPdfUrl: (id: number) => `${BASE}/owner-statements/${id}/pdf`,
+
+  // iCabbi sync
+  getIcabbiStatus: () =>
+    request<{ configured: boolean; entities: string[] }>(`/icabbi/status`),
+  triggerIcabbiSync: (entities?: string[]) =>
+    request<{
+      ok: boolean
+      configured?: boolean
+      results: Record<string, { entity: string; created?: number; updated?: number; skipped?: boolean; reason?: string; errors?: string[] }>
+    }>(`/icabbi/sync${entities ? `?entities=${entities.join(',')}` : ''}`, { method: 'POST' }),
+
   // Staff
   listStaff: () => request<any[]>(`/staff/`),
   createStaff: (data: Record<string, unknown>) =>

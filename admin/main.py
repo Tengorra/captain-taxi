@@ -18,6 +18,8 @@ from .api.routes import (
     # iCabbi-parity modules
     addresses, areas, custom_fields, favourites, items, partners,
     blacklist, receipts, owner_statements, staff,
+    # iCabbi sync
+    icabbi,
 )
 
 
@@ -73,6 +75,7 @@ app.include_router(blacklist.router, prefix="/api")
 app.include_router(receipts.router, prefix="/api")
 app.include_router(owner_statements.router, prefix="/api")
 app.include_router(staff.router, prefix="/api")
+app.include_router(icabbi.router, prefix="/api")
 
 
 @app.get("/")
