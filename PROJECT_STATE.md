@@ -116,8 +116,12 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - WebSocket `/calls/stream` (optional `?call_id=` filter, history replay on connect) — DONE
 - Manual controls: `GET /calls/{id}/history`, `POST /calls/{id}/transfer` — DONE
 - docker-compose entry on port 8007; nginx routes `/webhook/elevenlabs/`, `/api/bot/`, `/ws/calls/` — DONE
-- ⚠️ Needs `.env` credentials: `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
-- ⚠️ ElevenLabs agent itself (system prompt, voice, tool schemas) is configured in the ElevenLabs dashboard, not in code
+- Drop-in agent config: `bot/elevenlabs_agent.json` (system prompt + 4 tool schemas + webhook URL) — paste into the ElevenLabs dashboard
+- Quickstart docs: `bot/README.md`
+- Unit tests for pure-logic helpers: `bot/tests/test_difficulty.py`, `bot/tests/test_dispatch_client.py` — 14 tests passing
+- `.env.example` updated with the bot block (`ELEVENLABS_*`, `HUMAN_DISPATCHER_*`)
+- ⚠️ Still needs real `.env` credentials: `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+- ⚠️ ElevenLabs agent itself must be created in the ElevenLabs dashboard (use `bot/elevenlabs_agent.json` as the spec)
 
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
@@ -167,11 +171,13 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated)
 - [ ] Load test / stress test with simulated driver fleet
 - [ ] Production deployment on a server (VPS or cloud)
-- [ ] BOT: provision ElevenLabs Conversational AI agent (system prompt + tool schemas matching `book_trip` / `get_trip_status` / `cancel_trip` / `transfer_to_human`) and wire its webhook to `https://admin.captaintaxi.ca/webhook/elevenlabs/call`
-- [ ] BOT: set `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` in `.env`
+- [ ] BOT: provision ElevenLabs Conversational AI agent — paste `bot/elevenlabs_agent.json` (prompt + 4 tool schemas) into the ElevenLabs dashboard and wire its webhook to `https://admin.captaintaxi.ca/webhook/elevenlabs/call` ← *needs ElevenLabs account access*
+- [ ] BOT: set `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` in `.env` (template already in `.env.example`) ← *needs secrets*
+- [ ] BOT: point Saskatoon (+13062420000) and Regina (+13067752222) Twilio numbers at the ElevenLabs SIP trunk for this agent ← *needs Twilio + ElevenLabs dashboard access*
+- [ ] BOT: validate warm-transfer end-to-end on a real Twilio call (call.update TwiML redirect) ← *needs a real call*
 - [x] BOT: "Live Calls" dashboard tab — `dashboard/src/pages/LiveCalls.tsx` consumes `/ws/calls/stream`, manual transfer button included
-- [ ] BOT: validate warm-transfer end-to-end on a real Twilio call (call.update TwiML redirect)
 - [x] BOT: extend `scripts/test_e2e.py` with a bot leg (simulated ElevenLabs webhook → book_trip → dispatch verification → history replay)
+- [x] BOT: agent config template `bot/elevenlabs_agent.json`, quickstart `bot/README.md`, unit tests `bot/tests/` (14 passing), `.env.example` bot block
 
 ---
 
