@@ -8,6 +8,7 @@ import Accounts from './pages/Accounts'
 import Compliance from './pages/Compliance'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import LiveCalls from './pages/LiveCalls'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route index element={<Navigate to="/overview" replace />} />
           <Route path="overview" element={<Overview />} />
           <Route path="dispatch" element={<Dispatch />} />
+          <Route path="live-calls" element={<LiveCalls />} />
           <Route path="drivers" element={<Drivers />} />
           <Route path="drivers/:id" element={<DriverProfile />} />
           <Route path="accounts" element={<Accounts />} />

@@ -197,4 +197,30 @@ export const api = {
     const q = city ? `?city=${city}` : ''
     return request<import('../types').DispatchStats>(`/dispatch/dashboard/stats${q}`)
   },
+
+  // ── BOT (live calls) ─────────────────────────────────────────────────────
+  callHistory: (callId: string) =>
+    request<{ call_id: string; events: import('../types').BotCallEvent[] }>(
+      `/bot/calls/${callId}/history`,
+    ),
+  transferCall: (
+    callId: string,
+    body: { twilio_call_sid: string; city?: string; reason?: string },
+  ) =>
+    request(`/bot/calls/${callId}/transfer`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+}
+
+// Live call-log WebSocket URL. The bot service exposes it at /calls/stream;
+// nginx proxies it under /ws/calls/stream.
+export function callsStreamUrl(callId?: string): string {
+  const isHttps =
+    typeof window !== 'undefined' && window.location.protocol === 'https:'
+  const proto = isHttps ? 'wss' : 'ws'
+  const host =
+    typeof window !== 'undefined' ? window.location.host : 'localhost'
+  const qs = callId ? `?call_id=${encodeURIComponent(callId)}` : ''
+  return `${proto}://${host}/ws/calls/stream${qs}`
 }

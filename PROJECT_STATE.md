@@ -134,6 +134,7 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
   - Cancel + no-show actions from job board
 - **NEW (session 5):** `api.ts` dispatch methods: createTrip, listTrips, cancelTrip, noShowTrip, reassignTrip, listDispatchDrivers, getDispatchQueue, getDispatchMap, getDispatchStats
 - **NEW (session 5):** `types/index.ts` dispatch types: DispatchTrip, DispatchDriver, DispatchQueue, QueueTrip, MapDriver, DispatchStats, TripCreatePayload
+- **NEW (session 8):** `pages/LiveCalls.tsx` — Live Calls tab consuming bot WebSocket (`/ws/calls/stream`), two-pane layout (recent calls list + per-call event log), auto-reconnect, history replay on reload, manual "transfer to human" button (prompts for Twilio CallSid + city, calls `POST /api/bot/calls/{id}/transfer`). Route `/live-calls` + sidebar entry added. Bot types (`BotCallEvent`, `BotCallSummary`, `BotCallEventType`) + API helpers (`callHistory`, `transferCall`, `callsStreamUrl`) added.
 
 ---
 
@@ -168,8 +169,9 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [ ] Production deployment on a server (VPS or cloud)
 - [ ] BOT: provision ElevenLabs Conversational AI agent (system prompt + tool schemas matching `book_trip` / `get_trip_status` / `cancel_trip` / `transfer_to_human`) and wire its webhook to `https://admin.captaintaxi.ca/webhook/elevenlabs/call`
 - [ ] BOT: set `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` in `.env`
-- [ ] BOT: add a "Live Calls" tab to the dashboard that subscribes to `wss://admin.captaintaxi.ca/ws/calls/` and renders the event stream + manual transfer button
+- [x] BOT: "Live Calls" dashboard tab — `dashboard/src/pages/LiveCalls.tsx` consumes `/ws/calls/stream`, manual transfer button included
 - [ ] BOT: validate warm-transfer end-to-end on a real Twilio call (call.update TwiML redirect)
+- [x] BOT: extend `scripts/test_e2e.py` with a bot leg (simulated ElevenLabs webhook → book_trip → dispatch verification → history replay)
 
 ---
 
