@@ -204,3 +204,187 @@ class Settings(Base):
     value = Column(Text, nullable=False)
     description = Column(String(300))
     updated_at = Column(DateTime(timezone=True))
+
+
+# ─── iCabbi MANAGE-tab modules ───────────────────────────────────────────────
+# All carry icabbi_ref + last_synced_at so a future sync job can reconcile rows
+# pulled from iCabbi without duplicating them.
+
+class Address(Base):
+    __tablename__ = "addresses"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    label = Column(String(200))                          # "Home", "City Hall", etc.
+    line1 = Column(String(255), nullable=False)
+    line2 = Column(String(255))
+    city = Column(String(50))
+    province = Column(String(20), default="SK")
+    postal = Column(String(20))
+    lat = Column(Float)
+    lng = Column(Float)
+    address_type = Column(String(30), default="other")   # home/work/landmark/other
+    customer_id = Column(String(36), index=True)         # null = global address
+    notes = Column(Text)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True))
+
+
+class Area(Base):
+    __tablename__ = "areas"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    area_type = Column(String(20), default="circle")     # circle / polygon
+    city = Column(String(50))
+    # circle:
+    center_lat = Column(Float)
+    center_lng = Column(Float)
+    radius_m = Column(Integer)
+    # polygon:
+    polygon_geojson = Column(JSON)                       # GeoJSON Polygon coordinates
+    tags = Column(JSON, default=list)                    # ["fare_zone", "dispatch", ...]
+    active = Column(Boolean, default=True)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True))
+
+
+class CustomFieldDef(Base):
+    """Schema row: defines a custom field that can be attached to an entity type."""
+    __tablename__ = "custom_field_defs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_type = Column(String(30), nullable=False, index=True)  # driver/customer/trip/account/vehicle
+    key = Column(String(100), nullable=False)
+    label = Column(String(200), nullable=False)
+    data_type = Column(String(20), default="string")     # string/number/bool/date/select
+    options = Column(JSON, default=list)                 # for select: ["A","B","C"]
+    required = Column(Boolean, default=False)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CustomFieldValue(Base):
+    """Value row: one per entity per field."""
+    __tablename__ = "custom_field_values"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    field_id = Column(Integer, nullable=False, index=True)        # → custom_field_defs.id
+    entity_id = Column(String(36), nullable=False, index=True)
+    value = Column(Text)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Favourite(Base):
+    __tablename__ = "favourites"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(String(36), nullable=False, index=True)
+    label = Column(String(200), nullable=False)
+    address_text = Column(Text, nullable=False)
+    lat = Column(Float)
+    lng = Column(Float)
+    address_id = Column(Integer)                         # optional → addresses.id
+    times_used = Column(Integer, default=0)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Item(Base):
+    """Trip extras catalogue: cleaning fee, child seat, meet-and-greet, etc."""
+    __tablename__ = "items"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(50), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    price = Column(Float, nullable=False, default=0.0)
+    taxable = Column(Boolean, default=True)
+    active = Column(Boolean, default=True)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Partner(Base):
+    """Affiliate operators (sister taxi companies, ride-share handoff partners)."""
+    __tablename__ = "partners"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    contact_name = Column(String(200))
+    contact_phone = Column(String(30))
+    contact_email = Column(String(200))
+    city = Column(String(50))
+    commission_rate = Column(Float, default=0.10)         # fraction we pay/take
+    active = Column(Boolean, default=True)
+    notes = Column(Text)
+    icabbi_ref = Column(String(50), index=True)
+    last_synced_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True))
+
+
+# ─── iCabbi ADMIN-tab modules ────────────────────────────────────────────────
+
+class BlacklistEntry(Base):
+    """Blocked phone numbers / customers / drivers / emails."""
+    __tablename__ = "blacklist_entries"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_type = Column(String(20), nullable=False, index=True)   # phone/customer/driver/email
+    entity_value = Column(String(200), nullable=False, index=True)
+    reason = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True))                   # null = permanent
+    added_by = Column(String(100), default="system")               # owner/amara/agent name
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Receipt(Base):
+    """Customer-facing trip receipts (generated PDFs, sent by email)."""
+    __tablename__ = "receipts"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trip_id = Column(String(36), nullable=False, index=True)
+    customer_id = Column(String(36), index=True)
+    subtotal = Column(Float, default=0.0)
+    tax = Column(Float, default=0.0)
+    total = Column(Float, default=0.0)
+    items_json = Column(JSON, default=list)              # line items snapshot
+    file_path = Column(String(500))
+    sent_to_email = Column(String(200))
+    sent_at = Column(DateTime(timezone=True))
+    icabbi_ref = Column(String(50), index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class OwnerStatement(Base):
+    """Per-vehicle-owner periodic payout statement (distinct from driver pay)."""
+    __tablename__ = "owner_statements"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_name = Column(String(200), nullable=False)
+    owner_email = Column(String(200))
+    vehicle_ref = Column(String(50), index=True)         # iCabbi vehicle ref (e.g. t1000)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    gross = Column(Float, default=0.0)
+    deductions = Column(Float, default=0.0)
+    net = Column(Float, default=0.0)
+    status = Column(String(20), default="draft")         # draft/sent/paid
+    pdf_path = Column(String(500))
+    sent_at = Column(DateTime(timezone=True))
+    paid_at = Column(DateTime(timezone=True))
+    notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Staff(Base):
+    """Dashboard login accounts — thin (owner, Amara, optional read-only).
+    Captain Taxi's AI replaces the iCabbi operator/dispatcher role, so this is
+    NOT a full role/permission matrix."""
+    __tablename__ = "staff"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(200), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
+    phone = Column(String(30))
+    role = Column(String(20), default="viewer")          # owner/admin/viewer
+    is_active = Column(Boolean, default=True)
+    last_login_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Car, Users, DollarSign,
-  ShieldCheck, BarChart2, Settings, Menu, X
+  ShieldCheck, BarChart2, Settings, Menu, X,
+  MapPin, Map, Sliders, Star, Package, Handshake,
+  Ban, Receipt, FileText, UserCog,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -14,6 +16,22 @@ const NAV = [
   { to: '/compliance',  icon: ShieldCheck,     label: 'Compliance' },
   { to: '/reports',     icon: BarChart2,       label: 'Reports' },
   { to: '/settings',    icon: Settings,        label: 'Settings' },
+]
+
+const MANAGE_NAV = [
+  { to: '/addresses',     icon: MapPin,    label: 'Addresses' },
+  { to: '/areas',         icon: Map,       label: 'Areas' },
+  { to: '/custom-fields', icon: Sliders,   label: 'Custom Fields' },
+  { to: '/favourites',    icon: Star,      label: 'Favourites' },
+  { to: '/items',         icon: Package,   label: 'Items' },
+  { to: '/partners',      icon: Handshake, label: 'Partners' },
+]
+
+const ADMIN_NAV = [
+  { to: '/blacklist',        icon: Ban,      label: 'Blacklist' },
+  { to: '/receipts',         icon: Receipt,  label: 'Receipts' },
+  { to: '/owner-statements', icon: FileText, label: 'Owner Statements' },
+  { to: '/staff',            icon: UserCog,  label: 'Staff' },
 ]
 
 interface Props {
@@ -81,6 +99,42 @@ export default function Sidebar({ alertCount = 0 }: Props) {
                   {alertCount}
                 </span>
               )}
+            </NavLink>
+          ))}
+
+          <p className="text-xs text-gray-600 mt-5 mb-1 px-3 font-medium uppercase tracking-wide">Manage</p>
+          {MANAGE_NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) => clsx(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
+              )}
+            >
+              <Icon size={16} />
+              {label}
+            </NavLink>
+          ))}
+
+          <p className="text-xs text-gray-600 mt-5 mb-1 px-3 font-medium uppercase tracking-wide">Admin</p>
+          {ADMIN_NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) => clsx(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
+              )}
+            >
+              <Icon size={16} />
+              {label}
             </NavLink>
           ))}
         </nav>
