@@ -233,6 +233,46 @@ export interface Driver {
   gender?: string
   phone_os?: string
   phone_model?: string
+
+  // Attributes (iCabbi yes/no)
+  attr_pets?: boolean
+  attr_uniformed?: boolean
+  attr_topman?: boolean
+  attr_accept_discount?: boolean
+  attr_accept_account?: boolean
+  attr_accept_fixed_fares?: boolean
+  attr_accept_cash_work?: boolean
+  transporter?: boolean
+
+  // Extended (only present on /drivers/{id} detail)
+  ethnicity?: string
+  payment_card_last4?: string
+  payment_card_expiry?: string
+  pvg_disclosure?: string
+  police_record?: string
+  police_record_2?: string
+  phone_assist?: boolean
+  invoice_footer?: string
+  shift_reporting?: boolean
+  payment_on_day?: string
+  distribution?: string
+  apply_vat?: boolean
+  vat_rate?: number
+  balance?: number
+  exclude_booking_fee?: boolean
+  auto_post?: string
+  bank_payment_ref?: string
+  use_sepa?: boolean
+  bank_account_name?: string
+  breathalyser_enabled?: boolean
+  fatigue_max_work_hours?: number
+  fatigue_min_rest_hours?: number
+  fatigue_exceed_job_pct?: number
+  fatigue_send_alert_pct?: number
+  sites?: Array<{ site_code: string; site_name: string; assigned: boolean; is_primary: boolean }>
+  files?: Array<{ id: string; type: string; filename: string; uploaded_at: string }>
+  login_username?: string
+  has_login_password?: boolean
 }
 
 export interface ActivityLog {

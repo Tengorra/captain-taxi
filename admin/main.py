@@ -14,7 +14,8 @@ from .db.database import init_db
 from .scheduler import setup_scheduler
 from .agents.whatsapp_handler import register_owner_numbers
 from .api.routes import (
-    dashboard, drivers, escalations, compliance, reports, announcements, settings, hr
+    dashboard, drivers, escalations, compliance, reports, announcements,
+    settings, hr, driver_files, vehicles,
 )
 
 
@@ -58,6 +59,8 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(announcements.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(hr.router, prefix="/api")
+app.include_router(driver_files.router, prefix="/api")
+app.include_router(vehicles.router, prefix="/api")
 
 
 @app.get("/")

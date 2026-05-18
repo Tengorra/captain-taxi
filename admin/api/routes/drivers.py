@@ -6,7 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ...db.database import get_db
-from ...db.models import Driver, Vehicle, Trip
+from ...db.models import Driver, Vehicle, Trip, DriverSite
+
+
+SITE_REGISTRY = {
+    "CTS": "Captain Taxi Saskatoon",
+    "CTR": "Captain Taxi Regina",
+}
+
+
+class SiteAssignment(BaseModel):
+    site_code: str
+    assigned: bool = True
+    is_primary: bool = False
 
 router = APIRouter(prefix="/drivers", tags=["drivers"])
 
@@ -97,6 +109,61 @@ class DriverCreate(BaseModel):
     bank_account_number: Optional[str] = None
     sort_code: Optional[str] = None
 
+    # Auth
+    login_username: Optional[str] = None
+    login_password: Optional[str] = None  # hashed on save
+
+    # Personal extras
+    ethnicity: Optional[str] = None
+    transporter: Optional[bool] = None
+    payment_card_last4: Optional[str] = None
+    payment_card_expiry: Optional[str] = None  # YYYY-MM or YYYY-MM-DD
+
+    # Custom fields
+    pvg_disclosure: Optional[str] = None
+    police_record: Optional[str] = None
+    police_record_2: Optional[str] = None
+
+    # Attributes
+    attr_pets: Optional[bool] = None
+    attr_uniformed: Optional[bool] = None
+    attr_topman: Optional[bool] = None
+    attr_accept_discount: Optional[bool] = None
+    attr_accept_account: Optional[bool] = None
+    attr_accept_fixed_fares: Optional[bool] = None
+    attr_accept_cash_work: Optional[bool] = None
+
+    # Device extras
+    phone_assist: Optional[bool] = None
+
+    # Invoicing / Shifts
+    invoice_footer: Optional[str] = None
+    shift_reporting: Optional[bool] = None
+
+    # Payments / VAT
+    payment_on_day: Optional[str] = None
+    distribution: Optional[str] = None
+    apply_vat: Optional[bool] = None
+    vat_rate: Optional[float] = None
+    balance: Optional[float] = None
+    exclude_booking_fee: Optional[bool] = None
+    auto_post: Optional[str] = None
+    bank_payment_ref: Optional[str] = None
+    use_sepa: Optional[bool] = None
+    bank_account_name: Optional[str] = None
+
+    # Breathalyser
+    breathalyser_enabled: Optional[bool] = None
+
+    # Fatigue
+    fatigue_max_work_hours: Optional[int] = None
+    fatigue_min_rest_hours: Optional[int] = None
+    fatigue_exceed_job_pct: Optional[int] = None
+    fatigue_send_alert_pct: Optional[int] = None
+
+    # Sites (CTS, CTR)
+    sites: Optional[list[SiteAssignment]] = None
+
     # Catch-all for the deep iCabbi app-config flags
     icabbi_config: Optional[dict[str, Any]] = None
 
@@ -128,13 +195,29 @@ STATUS_MAP = {
 
 
 def _parse_date(val: Optional[str]) -> Optional[date]:
-    """Parse YYYY-MM-DD into a date. Returns None for empty or unparseable values."""
+    """Parse YYYY-MM-DD into a date. Returns None for empty or unparseable values.
+    Also accepts YYYY-MM (treats day as 01) — payment-card expiry only stores
+    month + year in iCabbi."""
     if not val:
         return None
     try:
         return datetime.strptime(val[:10], "%Y-%m-%d").date()
     except (ValueError, TypeError):
+        pass
+    try:
+        return datetime.strptime(val[:7] + "-01", "%Y-%m-%d").date()
+    except (ValueError, TypeError):
         return None
+
+
+def _hash_password(raw: Optional[str]) -> Optional[str]:
+    """Cheap one-way hash so the login_password column never stores plaintext.
+    We aren't using bcrypt here to avoid adding a runtime dep — the field is
+    a UI parity-with-iCabbi feature for now, not a production auth credential."""
+    if not raw:
+        return None
+    import hashlib
+    return "sha256$" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _parse_datetime(val: Optional[str]) -> Optional[datetime]:
@@ -234,9 +317,72 @@ def create_driver(body: DriverCreate, db: Session = Depends(get_db)):
         # Catch-all
         icabbi_config=body.icabbi_config,
         notes=body.notes,
+        # Auth
+        login_username=body.login_username,
+        login_password_hash=_hash_password(body.login_password),
+        # Personal extras
+        ethnicity=body.ethnicity,
+        transporter=bool(body.transporter) if body.transporter is not None else False,
+        payment_card_last4=body.payment_card_last4,
+        payment_card_expiry=_parse_date(body.payment_card_expiry),
+        # Custom fields
+        pvg_disclosure=body.pvg_disclosure,
+        police_record=body.police_record,
+        police_record_2=body.police_record_2,
+        # Attributes
+        attr_pets=bool(body.attr_pets) if body.attr_pets is not None else False,
+        attr_uniformed=bool(body.attr_uniformed) if body.attr_uniformed is not None else False,
+        attr_topman=bool(body.attr_topman) if body.attr_topman is not None else False,
+        attr_accept_discount=bool(body.attr_accept_discount) if body.attr_accept_discount is not None else True,
+        attr_accept_account=bool(body.attr_accept_account) if body.attr_accept_account is not None else True,
+        attr_accept_fixed_fares=bool(body.attr_accept_fixed_fares) if body.attr_accept_fixed_fares is not None else True,
+        attr_accept_cash_work=bool(body.attr_accept_cash_work) if body.attr_accept_cash_work is not None else True,
+        phone_assist=bool(body.phone_assist) if body.phone_assist is not None else False,
+        # Invoicing / shifts
+        invoice_footer=body.invoice_footer,
+        shift_reporting=bool(body.shift_reporting) if body.shift_reporting is not None else False,
+        # Payments / VAT
+        payment_on_day=body.payment_on_day or body.payment_on,
+        distribution=body.distribution,
+        apply_vat=bool(body.apply_vat) if body.apply_vat is not None else False,
+        vat_rate=body.vat_rate,
+        balance=body.balance,
+        exclude_booking_fee=bool(body.exclude_booking_fee) if body.exclude_booking_fee is not None else False,
+        auto_post=body.auto_post,
+        bank_payment_ref=body.bank_payment_ref,
+        use_sepa=bool(body.use_sepa) if body.use_sepa is not None else False,
+        bank_name=body.bank_name,
+        bank_account_name=body.bank_account_name,
+        sort_code=body.sort_code,
+        bank_account_number=body.bank_account_number,
+        # Breathalyser
+        breathalyser_enabled=bool(body.breathalyser_enabled) if body.breathalyser_enabled is not None else False,
+        # Fatigue
+        fatigue_max_work_hours=body.fatigue_max_work_hours,
+        fatigue_min_rest_hours=body.fatigue_min_rest_hours,
+        fatigue_exceed_job_pct=body.fatigue_exceed_job_pct,
+        fatigue_send_alert_pct=body.fatigue_send_alert_pct,
     )
     db.add(driver)
-    db.flush()  # get ID before creating vehicle
+    db.flush()  # get ID before creating vehicle / site rows
+
+    # Site assignments (CTS / CTR / etc.) — only one row per (driver, site).
+    if body.sites:
+        primary_seen = False
+        for s in body.sites:
+            code = s.site_code.upper().strip()
+            name = SITE_REGISTRY.get(code, code)
+            is_primary = bool(s.is_primary) and not primary_seen
+            if is_primary:
+                primary_seen = True
+            db.add(DriverSite(
+                id=str(uuid.uuid4()),
+                driver_id=driver.id,
+                site_code=code,
+                site_name=name,
+                assigned=bool(s.assigned),
+                is_primary=is_primary,
+            ))
 
     if body.vehicle_plate:
         # vehicle_make/model can come in as separate fields OR as "Make Model"
@@ -422,6 +568,15 @@ def _driver_summary(d: Driver, db: Session) -> dict:
         "gender": d.gender,
         "phone_os": d.phone_os,
         "phone_model": d.phone_model,
+        # Attributes (shown as YES/NO chips in the iCabbi-style table)
+        "attr_pets": bool(d.attr_pets),
+        "attr_uniformed": bool(d.attr_uniformed),
+        "attr_topman": bool(d.attr_topman),
+        "attr_accept_discount": bool(d.attr_accept_discount),
+        "attr_accept_account": bool(d.attr_accept_account),
+        "attr_accept_fixed_fares": bool(d.attr_accept_fixed_fares),
+        "attr_accept_cash_work": bool(d.attr_accept_cash_work),
+        "transporter": bool(d.transporter),
     }
 
 
@@ -430,6 +585,88 @@ def _driver_detail(d: Driver, db: Session) -> dict:
     summary["email"] = d.email
     summary["notes"] = d.notes
     summary["created_at"] = d.created_at.isoformat() if d.created_at else None
+
+    # Auth (never return the hash itself — just whether one's set)
+    summary["login_username"] = d.login_username
+    summary["has_login_password"] = bool(d.login_password_hash)
+
+    # Personal extras
+    summary["ethnicity"] = d.ethnicity
+    summary["payment_card_last4"] = d.payment_card_last4
+    summary["payment_card_expiry"] = d.payment_card_expiry.isoformat() if d.payment_card_expiry else None
+
+    # Custom fields
+    summary["pvg_disclosure"] = d.pvg_disclosure
+    summary["police_record"] = d.police_record
+    summary["police_record_2"] = d.police_record_2
+
+    # Device extras
+    summary["phone_assist"] = bool(d.phone_assist)
+
+    # Invoicing / shifts
+    summary["invoice_footer"] = d.invoice_footer
+    summary["shift_reporting"] = bool(d.shift_reporting)
+    summary["frequency"] = d.frequency
+    summary["payment_terms"] = d.payment_terms
+    summary["output_preference"] = d.output_preference
+    summary["si_id"] = d.si_id
+
+    # Payments / VAT
+    summary["payment_on_day"] = d.payment_on_day
+    summary["distribution"] = d.distribution
+    summary["apply_vat"] = bool(d.apply_vat)
+    summary["vat_rate"] = d.vat_rate
+    summary["balance"] = d.balance
+    summary["exclude_booking_fee"] = bool(d.exclude_booking_fee)
+    summary["auto_post"] = d.auto_post
+    summary["bank_payment_ref"] = d.bank_payment_ref
+    summary["use_sepa"] = bool(d.use_sepa)
+    summary["bank_name"] = d.bank_name
+    summary["bank_account_name"] = d.bank_account_name
+    summary["sort_code"] = d.sort_code
+    summary["bank_account_number"] = d.bank_account_number
+
+    # Breathalyser
+    summary["breathalyser_enabled"] = bool(d.breathalyser_enabled)
+
+    # Fatigue
+    summary["fatigue_max_work_hours"] = d.fatigue_max_work_hours
+    summary["fatigue_min_rest_hours"] = d.fatigue_min_rest_hours
+    summary["fatigue_exceed_job_pct"] = d.fatigue_exceed_job_pct
+    summary["fatigue_send_alert_pct"] = d.fatigue_send_alert_pct
+
+    # Sites
+    site_rows = db.query(DriverSite).filter(DriverSite.driver_id == d.id).all()
+    summary["sites"] = [
+        {
+            "site_code": s.site_code,
+            "site_name": s.site_name,
+            "assigned": bool(s.assigned),
+            "is_primary": bool(s.is_primary),
+        }
+        for s in site_rows
+    ]
+    # If no rows yet, still expose the catalog so the UI can render the table.
+    if not site_rows:
+        summary["sites"] = [
+            {"site_code": code, "site_name": name, "assigned": False, "is_primary": False}
+            for code, name in SITE_REGISTRY.items()
+        ]
+
+    # Files (HR-style uploads — separate from compliance docs)
+    from ...db.models import DriverFile
+    files = db.query(DriverFile).filter(DriverFile.driver_id == d.id).all()
+    summary["files"] = [
+        {
+            "id": f.id,
+            "type": f.file_type,
+            "filename": f.filename,
+            "content_type": f.content_type,
+            "size_bytes": f.size_bytes,
+            "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+        }
+        for f in files
+    ]
 
     completed_trips = db.query(Trip).filter(
         Trip.driver_id == d.id,
