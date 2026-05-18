@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     vapi_phone_number_id_regina: str = ""
     vapi_webhook_secret: str = ""
 
+    # ElevenLabs Agents (voice agent platform)
+    elevenlabs_api_key: str = ""
+    elevenlabs_agent_id: str = ""
+    elevenlabs_webhook_secret: str = ""
+    # Header that carries the shared secret on inbound tool calls.
+    # Configure the same header on each tool in the ElevenLabs dashboard.
+    elevenlabs_auth_header: str = "X-Captain-Auth"
+
     # Database (component vars)
     postgres_host: str = "db"
     postgres_port: int = 5432

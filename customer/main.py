@@ -12,7 +12,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from config import get_settings
 from db.database import init_db
-from routers import twilio, vapi, chat, health
+from routers import twilio, vapi, chat, health, voice
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,7 +52,8 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(health.router)
 app.include_router(twilio.router)
-app.include_router(vapi.router)
+app.include_router(vapi.router)     # legacy: kept as an alternative voice platform
+app.include_router(voice.router)    # ElevenLabs Agents (primary voice platform)
 app.include_router(chat.router)
 
 

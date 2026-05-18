@@ -117,6 +117,19 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - **FIX (session 8):** `customer/services/dispatch.py:create_trip` — `channel` was a required positional but unused; all callers passed it implicitly through Python's flexibility but the function would TypeError on a real call. Replaced with an optional `booking_source: str = "agent"` that actually flows into the dispatch payload. `customer/ai/conversation.py` now maps `Channel.PHONE/WHATSAPP/SMS/WEB_CHAT → booking_source` so phone-bot calls land in dispatch as `booking_source="phone"`.
 - **FIX (session 8):** `customer/config.py` — added `vapi_api_key`, `vapi_phone_number_id_saskatoon`, `vapi_phone_number_id_regina` settings (referenced by `customer/vapi/setup.py` but previously missing → AttributeError on provisioning). Existing `vapi_private_key` kept as a legacy alias; setup script accepts either.
 - **NEW (session 8):** `scripts/test_vapi_bot.py` — simulates a Vapi tool-call webhook end-to-end (POST → /webhook/vapi/call → dispatch trip with `booking_source=phone`), then a simulated `end-of-call-report`. Lets you verify the bot path before you have a real phone number.
+- **NEW (session 8):** ElevenLabs Agents (Conversational AI) chosen as the primary voice platform — uses voices we already use and skips Vapi's per-minute orchestration fee. Vapi router kept as a fallback alternative.
+- **NEW (session 8):** `customer/routers/voice.py` — REST endpoints for each ElevenLabs tool (each tool in the ElevenLabs dashboard is configured as a discrete webhook, unlike Vapi's single-webhook model):
+  - POST `/voice/booking` — create_booking
+  - POST `/voice/trip-status` — get_trip_status
+  - POST `/voice/cancel` — cancel_trip
+  - POST `/voice/fare-estimate` — get_fare_estimate
+  - POST `/voice/complaint` — log_complaint
+  - POST `/voice/lookup-bookings` — lookup_customer_bookings
+  - POST `/voice/post-call` — workspace post-call webhook with HMAC-SHA256 signature verification
+- **NEW (session 8):** `customer/config.py` — added `elevenlabs_api_key`, `elevenlabs_agent_id`, `elevenlabs_webhook_secret`, `elevenlabs_auth_header` (default `X-Captain-Auth`).
+- **NEW (session 8):** `customer/voice/README.md` — full step-by-step guide for configuring the ElevenLabs dashboard (agent, tools, post-call webhook, phone number BYO Twilio or native).
+- **NEW (session 8):** `scripts/test_elevenlabs_bot.py` — simulator that hits every `/voice/*` endpoint with the JSON the dashboard tool config will emit, verifies the booking lands in dispatch with `booking_source=phone`, and exercises the signed post-call webhook.
+- **FIX (session 8):** Domain rename across 17 files — `captaintaxi.ca` → `captain.taxi` (the actual owned domain). Touched nginx configs, deploy scripts, .env examples, system prompt, Vapi assistant_config.json, and service configs.
 
 ### ✅ DASHBOARD (dashboard/)
 - React + Vite + Tailwind app — FULLY BUILT (not a shell)
