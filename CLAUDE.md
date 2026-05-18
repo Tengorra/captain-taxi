@@ -34,6 +34,7 @@ Captain Taxi is a multi-agent AI system that runs a taxi company in Saskatoon & 
 | accounts | 8004 | FastAPI |
 | compliance | 8005 | FastAPI |
 | admin | 8006 | FastAPI + Claude |
+| bot | 8007 | FastAPI + ElevenLabs + Twilio |
 | dashboard | 3000 | React + Vite + Tailwind |
 
 **Infrastructure:** PostgreSQL 16, Redis 7, Nginx, Docker Compose.

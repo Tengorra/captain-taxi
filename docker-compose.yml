@@ -133,6 +133,20 @@ services:
     ports:
       - "127.0.0.1:8006:8006"
 
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      dispatch:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8007:8007"
+
   dashboard:
     build:
       context: ./dashboard
@@ -161,6 +175,7 @@ services:
       - accounts
       - compliance
       - admin
+      - bot
       - dashboard
 
 volumes:
