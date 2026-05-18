@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-04-12 (session 5)
+**Last updated:** 2026-05-17 (session 7)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -144,6 +144,8 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [x] Bug fix: `customer/ai/tools.py` — added `city` field to `create_booking` tool
 - [x] Bug fix: `customer/ai/conversation.py` — passes `city` and `scheduled_for` to dispatch client
 - [ ] Run E2E test against live Docker stack: `python scripts/test_e2e.py`
+- [ ] Apply Alembic migration `002_icabbi_driver_fields` on staging/prod DB before next iCabbi import
+- [ ] Settings: add mandatory-field config UI so the manual "Add Driver" form's required-field rules become user-tunable (currently hard-coded in `Drivers.tsx` `handleAddDriver`)
 - [ ] QuickBooks: complete OAuth flow and token refresh logic
 - [ ] Vapi: configure phone number and test call flow end-to-end
 - [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated)
@@ -171,3 +173,4 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |

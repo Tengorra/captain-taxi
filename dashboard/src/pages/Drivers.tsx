@@ -57,16 +57,25 @@ export default function Drivers() {
   const filtered = useMemo(() => {
     if (!allDrivers) return []
     let r = [...allDrivers]
-    if (applied.refId)
-      r = r.filter(d => d.id.toLowerCase().includes(applied.refId.toLowerCase()))
+    if (applied.refId) {
+      const q = applied.refId.toLowerCase()
+      r = r.filter(d =>
+        d.id.toLowerCase().includes(q) ||
+        (d.icabbi_ref || '').toLowerCase().includes(q) ||
+        (d.icabbi_driver_id || '').toLowerCase().includes(q)
+      )
+    }
     if (applied.plate)
-      r = r.filter(d => d.vehicle_plate?.toLowerCase().includes(applied.plate.toLowerCase()))
+      r = r.filter(d =>
+        d.vehicle_plate?.toLowerCase().includes(applied.plate.toLowerCase()) ||
+        d.vehicle_ref?.toLowerCase().includes(applied.plate.toLowerCase())
+      )
     if (applied.active === 'active')
-      r = r.filter(d => ['active', 'on_trip'].includes(d.status))
+      r = r.filter(d => d.is_active_flag === true || ['active', 'on_trip'].includes(d.status))
     else if (applied.active === 'inactive')
-      r = r.filter(d => !['active', 'on_trip'].includes(d.status))
+      r = r.filter(d => !(d.is_active_flag === true || ['active', 'on_trip'].includes(d.status)))
     if (applied.sort === 'id')
-      r.sort((a, b) => a.id.localeCompare(b.id))
+      r.sort((a, b) => (a.icabbi_ref || a.id).localeCompare(b.icabbi_ref || b.id))
     else
       r.sort((a, b) => a.name.localeCompare(b.name))
     return r
@@ -90,123 +99,237 @@ export default function Drivers() {
 
     try {
       const text = await file.text()
-      const lines = text.split('\n').filter(l => l.trim())
-      if (lines.length < 2) {
+
+      // Tolerate \r\n line endings, but DO NOT trim away blank cells inside
+      // quoted multi-line values. We split on real line boundaries first.
+      const allLines = text.replace(/\r\n/g, '\n').split('\n')
+      if (allLines.length < 2) {
         setImportError('CSV file is empty or has no data rows.')
         setImporting(false)
         return
       }
 
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
-      const idx = (name: string) => headers.indexOf(name)
+      // Re-join lines that contain unbalanced quotes (multi-line quoted notes).
+      const lines: string[] = []
+      let buf = ''
+      let openQuotes = 0
+      for (const raw of allLines) {
+        buf = buf ? buf + '\n' + raw : raw
+        for (const ch of raw) if (ch === '"') openQuotes++
+        if (openQuotes % 2 === 0) {
+          if (buf.trim()) lines.push(buf)
+          buf = ''
+          openQuotes = 0
+        }
+      }
+      if (buf.trim()) lines.push(buf)
 
       const parseRow = (line: string): string[] => {
         const result: string[] = []
         let current = ''
         let inQuotes = false
         for (let i = 0; i < line.length; i++) {
-          if (line[i] === '"') {
-            inQuotes = !inQuotes
-          } else if (line[i] === ',' && !inQuotes) {
-            result.push(current.trim())
+          const ch = line[i]
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+            else inQuotes = !inQuotes
+          } else if (ch === ',' && !inQuotes) {
+            result.push(current)
             current = ''
           } else {
-            current += line[i]
+            current += ch
           }
         }
-        result.push(current.trim())
-        return result
+        result.push(current)
+        return result.map(s => s.trim())
       }
 
+      // iCabbi exports DD/MM/YYYY HH:mm. Return YYYY-MM-DD or '' for invalid/1969.
       const parseDate = (raw: string): string => {
         if (!raw) return ''
-        const match = raw.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-        if (!match) return ''
-        return `${match[3]}-${match[2]}-${match[1]}`
+        if (raw.includes('1969')) return ''  // iCabbi's "null date" sentinel
+        const m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (!m) return ''
+        return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
       }
+
+      const parseDateTime = (raw: string): string => {
+        if (!raw) return ''
+        if (raw.includes('1969')) return ''
+        const m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
+        if (!m) return ''
+        const d = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+        const t = m[4] ? `T${m[4].padStart(2, '0')}:${m[5]}:00` : 'T00:00:00'
+        return d + t
+      }
+
+      // iCabbi sometimes exports long phone numbers as scientific notation
+      // (e.g. "1.31445E+12" instead of "13144500000000"). Best-effort recover
+      // — Excel rounds the trailing digits, so this is imperfect but better
+      // than dropping the value entirely.
+      const normalizePhone = (raw: string): string => {
+        if (!raw) return ''
+        const cleaned = raw.replace(/\s+/g, '')
+        if (/^\d{6,}$/.test(cleaned)) return cleaned
+        if (/^[\d.]+e[+\-]?\d+$/i.test(cleaned)) {
+          const n = Number(cleaned)
+          if (Number.isFinite(n)) return Math.round(n).toString()
+        }
+        return cleaned
+      }
+
+      const toBool = (raw: string): boolean => raw === '1' || raw.toLowerCase() === 'yes' || raw.toLowerCase() === 'true'
+      const toIntOrUndef = (raw: string): number | undefined => {
+        if (!raw) return undefined
+        const n = parseInt(raw, 10)
+        return Number.isFinite(n) ? n : undefined
+      }
+
+      const headers = parseRow(lines[0]).map(h => h.replace(/"/g, '').trim())
+      const headerIdx = new Map<string, number>()
+      headers.forEach((h, i) => headerIdx.set(h, i))
+      // Some iCabbi exports have a leading blank header column. We allow
+      // lookup by exact column name only — the user's pasted file matches.
+
+      // Columns we already first-class on the backend. Everything NOT in this
+      // set gets dumped into `icabbi_config` as a JSON blob (still queryable
+      // via SQL, but kept out of the main schema).
+      const FIRST_CLASSED = new Set<string>([
+        'ACTIVE', 'DRIVER', 'REF', 'Vehicle', 'PIN',
+        'FIRST NAME', 'LAST NAME', 'AKA',
+        'Phone', 'MOBILE', 'Email', 'Address',
+        'START DATE', 'GENDER',
+        'BADGE/PSV', 'PSV EXPIRY', 'BADGE TYPE', 'IMEI/UDID',
+        'LICENCE', 'Header.licence_expiry', 'SCHOOL BADGE EXPIRY', 'NI NUMBER',
+        'VERSION', 'LEGACY VERSION', 'INSTALLED LEGACY VERSION',
+        'PHONE OS', 'PHONE OS VERSION', 'PHONE MANUFACTURER', 'PHONE MODEL',
+        'DELETED', 'LAST UPDATED', 'LAST ACTIVE',
+        'FREQUENCY', 'FREQUENCY DAY', 'PAYMENT TYPE', 'PAYMENT PERIOD',
+        'PAYMENT TERMS', 'LAST PAYMENT', 'OUTPUT PREFERENCE',
+        'NOTES', 'Profile Photo', 'PHONE LOCKED', 'SI ID',
+      ])
 
       let success = 0
       let failed = 0
       let skippedDupe = 0
+      let skippedBlank = 0
       const errors: string[] = []
 
       for (let i = 1; i < lines.length; i++) {
         const cols = parseRow(lines[i])
-        const get = (name: string): string => (cols[idx(name)] || '').replace(/"/g, '').trim()
+        const get = (name: string): string => {
+          const idx = headerIdx.get(name)
+          if (idx === undefined) return ''
+          return (cols[idx] || '').replace(/^"|"$/g, '').trim()
+        }
 
         const firstName = get('FIRST NAME')
         const lastName  = get('LAST NAME')
-        const phone     = get('MOBILE') || get('Phone')
         const refNum    = get('REF')
+        const driverId  = get('DRIVER')
 
-        // Skip completely empty rows
-        if (!firstName && !lastName && !refNum) continue
-
-        // Phone is required — skip rows without one
-        if (!phone) {
-          errors.push(`Row ${i}: ${firstName} ${lastName} — no phone, skipped`)
-          failed++
+        // Skip rows that are completely empty (no ref, no name, no driver id).
+        // Placeholder "_copy" rows in iCabbi exports look like this.
+        if (!firstName && !lastName && !refNum && !driverId) {
+          skippedBlank++
           continue
         }
 
-        const isActiveDriver = get('ACTIVE') === '1'
-        const isDeleted      = get('DELETED') === '1'
-
-        // Map iCabbi flags → backend DriverStatus enum values
-        let importStatus: 'active' | 'suspended' | 'inactive' = 'inactive'
-        if (isDeleted) importStatus = 'suspended'
-        else if (isActiveDriver) importStatus = 'active'
-
-        const badgeExpiryRaw   = get('PSV EXPIRY')
-        const badgeExpiry      = badgeExpiryRaw && !badgeExpiryRaw.includes('1969') ? parseDate(badgeExpiryRaw) : ''
-        const licenceExpiryRaw = get('Header.licence_expiry')
-        const licenceExpiry    = licenceExpiryRaw && !licenceExpiryRaw.includes('1969') ? parseDate(licenceExpiryRaw) : ''
+        // Build the icabbi_config blob from every "extra" column.
+        const icabbiConfig: Record<string, string> = {}
+        headers.forEach((h, idx) => {
+          if (!h || FIRST_CLASSED.has(h)) return
+          const v = (cols[idx] || '').trim()
+          if (v) icabbiConfig[h] = v
+        })
 
         const address = get('Address')
-        const city    = address.toLowerCase().includes('regina') ? 'regina' : 'saskatoon'
+        const cityGuess = address.toLowerCase().includes('regina') ? 'regina' : 'saskatoon'
 
-        // Generate placeholder email for drivers without one (email is required on backend)
-        const rawEmail = get('Email')
-        const email = rawEmail || `noemail.${refNum || phone.replace(/\D/g, '')}@captaintaxi.local`
+        const isActiveFlag = toBool(get('ACTIVE'))
+        const isDeleted    = toBool(get('DELETED'))
+        // Map iCabbi flags → existing dashboard status vocabulary
+        let importStatus: 'active' | 'suspended' | 'inactive' = 'inactive'
+        if (isDeleted) importStatus = 'suspended'
+        else if (isActiveFlag) importStatus = 'active'
+
+        const gender = get('GENDER')
 
         try {
           await api.createDriver({
-            first_name:      firstName,
-            last_name:       lastName,
-            phone:           phone,
-            email:           email,
-            city:            city,
-            address:         address || undefined,
-            aka:             get('AKA') || undefined,
-            sex:             (get('GENDER') || 'M').toUpperCase() === 'F' ? 'female' : 'male',
-            badge_number:    get('BADGE/PSV') || undefined,
-            badge_expiry:    badgeExpiry || undefined,
-            badge_type:      get('BADGE TYPE') ? get('BADGE TYPE').toLowerCase().replace(' ', '_') : undefined,
-            licence_number:  get('LICENCE') || undefined,
-            licence_expiry:  licenceExpiry || undefined,
-            notes:           get('NOTES') || undefined,
-            icabbi_ref:      refNum || undefined,
-            commission_rate: 0.30,
-            driver_type:     'regular',
-            payment_type:    get('PAYMENT TYPE') ? get('PAYMENT TYPE').toLowerCase() : 'cash',
-            status:          importStatus,
+            // Identity
+            first_name:  firstName || undefined,
+            last_name:   lastName  || undefined,
+            aka:         get('AKA') || undefined,
+            gender:      gender || undefined,
+            address:     address || undefined,
+            email:       get('Email') || undefined,
+            phone:       normalizePhone(get('Phone')) || undefined,
+            mobile:      normalizePhone(get('MOBILE')) || undefined,
+            city:        cityGuess,
+            // Status
+            status:      importStatus,
+            is_active_flag: isActiveFlag,
+            is_deleted:     isDeleted,
+            // iCabbi linkage
+            icabbi_driver_id: driverId || undefined,
+            icabbi_ref:       refNum   || undefined,
+            vehicle_ref:      get('Vehicle') || undefined,
+            start_date:       parseDateTime(get('START DATE')) || undefined,
+            // Licensing
+            badge_number:        get('BADGE/PSV') || undefined,
+            badge_expiry:        parseDate(get('PSV EXPIRY')) || undefined,
+            badge_type:          get('BADGE TYPE') || undefined,
+            school_badge_expiry: parseDate(get('SCHOOL BADGE EXPIRY')) || undefined,
+            licence_number:      get('LICENCE') || undefined,
+            licence_expiry:      parseDate(get('Header.licence_expiry')) || undefined,
+            ni_number:           get('NI NUMBER') || undefined,
+            // Device / app
+            imei_udid:                get('IMEI/UDID') || undefined,
+            app_version:              get('VERSION') || undefined,
+            legacy_version:           get('LEGACY VERSION') || undefined,
+            installed_legacy_version: get('INSTALLED LEGACY VERSION') || undefined,
+            phone_os:                 get('PHONE OS') || undefined,
+            phone_os_version:         get('PHONE OS VERSION') || undefined,
+            phone_manufacturer:       get('PHONE MANUFACTURER') || undefined,
+            phone_model:              get('PHONE MODEL') || undefined,
+            phone_locked:             get('PHONE LOCKED').toUpperCase() === 'YES',
+            profile_photo:            get('Profile Photo') || undefined,
+            // Activity
+            last_updated_at: parseDateTime(get('LAST UPDATED')) || undefined,
+            last_active_at:  parseDateTime(get('LAST ACTIVE')) || undefined,
+            // Payments
+            payment_type:      get('PAYMENT TYPE') ? get('PAYMENT TYPE').toLowerCase() : undefined,
+            payment_period:    toIntOrUndef(get('PAYMENT PERIOD')),
+            payment_terms:     toIntOrUndef(get('PAYMENT TERMS')),
+            last_payment_at:   parseDateTime(get('LAST PAYMENT')) || undefined,
+            output_preference: get('OUTPUT PREFERENCE') || undefined,
+            frequency:         get('FREQUENCY') || undefined,
+            frequency_day:     toIntOrUndef(get('FREQUENCY DAY')),
+            si_id:             get('SI ID') || undefined,
+            commission_rate:   0.30,
+            driver_type:       'regular',
+            notes:             get('NOTES') || undefined,
+            // Everything else
+            icabbi_config: Object.keys(icabbiConfig).length ? icabbiConfig : undefined,
           })
           success++
-        } catch (err: any) {
-          const msg = err?.message || ''
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
           if (msg.includes('409') || msg.toLowerCase().includes('already exists')) {
             skippedDupe++
           } else {
-            errors.push(`Row ${i}: ${firstName} ${lastName} — ${msg}`)
+            errors.push(`Row ${i} (REF ${refNum || '—'}): ${firstName} ${lastName} — ${msg}`)
             failed++
           }
         }
       }
 
       if (errors.length > 0) console.warn('Import errors:', errors)
+      if (skippedBlank > 0) console.info(`Skipped ${skippedBlank} blank placeholder rows`)
       setImportResult({ success, failed, dupes: skippedDupe })
-    } catch (err: any) {
-      setImportError(err.message || 'Import failed. Please check the CSV file.')
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : 'Import failed. Please check the CSV file.')
     } finally {
       setImporting(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -283,6 +406,14 @@ export default function Drivers() {
   }
 
   const isActive = (status: string) => ['active', 'on_trip'].includes(status)
+
+  // Display a YYYY-MM-DD or ISO datetime as DD/MM/YYYY (iCabbi style)
+  const fmtDate = (s?: string): string => {
+    if (!s) return '—'
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!m) return s
+    return `${m[3]}/${m[2]}/${m[1]}`
+  }
 
   const pageRange = () => {
     const start = Math.max(1, Math.min(page - 2, totalPages - 4))
@@ -432,31 +563,35 @@ export default function Drivers() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-800/60 border-b border-gray-700">
-                    {['REF', 'NAME', 'PHONE', 'LAST LOGIN', 'LAST BOOKING', 'VEH', 'PLATE', 'BADGE/PSV', 'CITY', 'ACTIVE', 'EDIT'].map(col => (
+                    {['REF', 'FIRST NAME', 'LAST NAME', 'MOBILE', 'BADGE/PSV', 'BADGE EXPIRY', 'LICENCE EXPIRY', 'VEHICLE', 'CITY', 'LAST ACTIVE', 'ACTIVE', 'EDIT'].map(col => (
                       <th key={col} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-400 tracking-widest uppercase whitespace-nowrap border-r border-gray-700/50 last:border-0">{col}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/60">
-                  {paged.map(driver => (
-                    <tr key={driver.id} className="hover:bg-gray-800/40 transition-colors">
-                      <td className="px-3 py-2.5 text-gray-400 font-mono text-xs whitespace-nowrap">{driver.id.slice(0, 8).toUpperCase()}</td>
-                      <td className="px-3 py-2.5 text-white font-medium whitespace-nowrap">{driver.name}</td>
-                      <td className="px-3 py-2.5 text-gray-300 font-mono text-xs whitespace-nowrap">{driver.phone || '—'}</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">—</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">—</td>
-                      <td className="px-3 py-2.5 text-gray-300 text-xs whitespace-nowrap">{driver.vehicle_model || '—'}</td>
-                      <td className="px-3 py-2.5 text-gray-300 text-xs uppercase whitespace-nowrap">{driver.vehicle_plate || '—'}</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">—</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap capitalize">{driver.city}</td>
-                      <td className="px-3 py-2.5">
-                        {isActive(driver.status) ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-red-400/50" />}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => navigate(`/drivers/${driver.id}`)} className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors tracking-wide">EDIT</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {paged.map(driver => {
+                    const activeNow = driver.is_active_flag === true || isActive(driver.status)
+                    return (
+                      <tr key={driver.id} className="hover:bg-gray-800/40 transition-colors">
+                        <td className="px-3 py-2.5 text-amber-300 font-mono text-xs whitespace-nowrap">{driver.icabbi_ref || driver.id.slice(0, 8).toUpperCase()}</td>
+                        <td className="px-3 py-2.5 text-white font-medium whitespace-nowrap">{driver.first_name || driver.name?.split(' ')[0] || '—'}</td>
+                        <td className="px-3 py-2.5 text-white font-medium whitespace-nowrap">{driver.last_name || driver.name?.split(' ').slice(1).join(' ') || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-300 font-mono text-xs whitespace-nowrap">{driver.mobile || driver.phone || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-300 text-xs whitespace-nowrap">{driver.badge_number || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-400 text-xs whitespace-nowrap">{fmtDate(driver.badge_expiry)}</td>
+                        <td className="px-3 py-2.5 text-gray-400 text-xs whitespace-nowrap">{fmtDate(driver.licence_expiry)}</td>
+                        <td className="px-3 py-2.5 text-gray-300 text-xs whitespace-nowrap">{driver.vehicle_ref || driver.vehicle_plate || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap capitalize">{driver.city || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{fmtDate(driver.last_active_at)}</td>
+                        <td className="px-3 py-2.5">
+                          {activeNow ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-red-400/50" />}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => navigate(`/drivers/${driver.id}`)} className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors tracking-wide">EDIT</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             )}

@@ -48,34 +48,69 @@ export const api = {
   driverTrips: (id: string) => request<import('../types').Trip[]>(`/drivers/${id}/trips`),
   driverDocuments: (id: string) => request<import('../types').DriverDocument[]>(`/drivers/${id}/documents`),
   createDriver: (data: {
-    first_name: string
-    last_name: string
-    email: string
-    phone: string
-    city: string
-    // Identity extras
-    address?: string
+    // Identity — all optional; UI enforces its own mandatory-field rules.
+    name?: string
+    first_name?: string
+    last_name?: string
     aka?: string
+    gender?: string
     sex?: string
+    address?: string
+    email?: string
+    phone?: string
+    mobile?: string
+    city?: string
+    // Status
+    status?: string
+    is_active_flag?: boolean
+    is_deleted?: boolean
+    driver_type?: string
+    // iCabbi linkage
+    icabbi_driver_id?: string
+    icabbi_ref?: string
+    vehicle_ref?: string
+    start_date?: string
+    // Licensing
+    licence_number?: string
+    licence_expiry?: string
+    badge_number?: string
+    badge_expiry?: string
+    badge_type?: string
+    school_badge_expiry?: string
+    ni_number?: string
     // Vehicle
     vehicle_make?: string
     vehicle_model?: string
     vehicle_year?: number
     vehicle_plate?: string
     vehicle_color?: string
-    // Licence / badge
-    badge_number?: string
-    badge_expiry?: string   // YYYY-MM-DD
-    badge_type?: string
-    licence_number?: string
-    licence_expiry?: string // YYYY-MM-DD
-    // Business
-    icabbi_ref?: string
-    notes?: string
+    // Device / app
+    imei_udid?: string
+    app_version?: string
+    legacy_version?: string
+    installed_legacy_version?: string
+    phone_os?: string
+    phone_os_version?: string
+    phone_manufacturer?: string
+    phone_model?: string
+    phone_locked?: boolean
+    profile_photo?: string
+    // Activity
+    last_updated_at?: string
+    last_active_at?: string
+    // Payments
     commission_rate?: number
-    driver_type?: string
     payment_type?: string
-    status?: string
+    payment_period?: number
+    payment_terms?: number
+    last_payment_at?: string
+    output_preference?: string
+    frequency?: string
+    frequency_day?: number
+    si_id?: string
+    // Catch-all
+    icabbi_config?: Record<string, unknown>
+    notes?: string
   }) =>
     request<import('../types').Driver>('/drivers/', { method: 'POST', body: JSON.stringify(data) }),
 

@@ -219,6 +219,20 @@ export interface Driver {
   // Suspension
   suspension_reason?: string
   suspended_at?: string
+
+  // iCabbi linkage / activity
+  icabbi_ref?: string
+  icabbi_driver_id?: string
+  vehicle_ref?: string
+  is_active_flag?: boolean
+  is_deleted?: boolean
+  start_date?: string
+  last_active_at?: string
+  last_updated_at?: string
+  mobile?: string
+  gender?: string
+  phone_os?: string
+  phone_model?: string
 }
 
 export interface ActivityLog {

@@ -19,22 +19,67 @@ Base = declarative_base()
 class Driver(Base):
     __tablename__ = "drivers"
     id = Column(String(36), primary_key=True)
-    name = Column(String(200), nullable=False)
-    phone = Column(String(20), nullable=False, unique=True)
+    # Identity
+    name = Column(String(200))                       # display name; built from first+last on import
+    first_name = Column(String(100))
+    last_name = Column(String(100))
+    aka = Column(String(100))
+    gender = Column(String(10))
+    address = Column(Text)
     email = Column(String(200))
-    license_number = Column(String(50))
+    phone = Column(String(30))                       # iCabbi "Phone" column (was unique+NOT NULL — relaxed)
+    mobile = Column(String(30))                      # iCabbi "MOBILE" column (separate from Phone)
+    # Licensing
+    license_number = Column(String(50))              # driving licence
     license_expiry = Column(Date)
-    taxi_license_number = Column(String(50))
+    taxi_license_number = Column(String(50))         # BADGE/PSV
     taxi_license_expiry = Column(Date)
+    badge_type = Column(String(50))                  # HACKNEY / PRIVATE HIRE
+    school_badge_expiry = Column(Date)
+    ni_number = Column(String(50))
+    # Status
     status = Column(String(20), nullable=False, default="onboarding")
-    city = Column(String(20), nullable=False)
-    icabbi_driver_id = Column(String(100))
+    is_active_flag = Column(Boolean, default=False)  # iCabbi ACTIVE column (0/1)
+    is_deleted = Column(Boolean, default=False)      # iCabbi DELETED column
+    city = Column(String(20))
+    # iCabbi linkage
+    icabbi_driver_id = Column(String(100))           # internal iCabbi DRIVER id (e.g. 34024)
+    icabbi_ref = Column(String(50), index=True)      # iCabbi REF (e.g. 7136) — used for de-duplication
+    vehicle_ref = Column(String(50))                 # iCabbi Vehicle column (e.g. t1000, 82_old)
+    start_date = Column(DateTime(timezone=True))
+    # Device / app
+    imei_udid = Column(String(200))
+    app_version = Column(String(50))
+    legacy_version = Column(String(50))
+    installed_legacy_version = Column(String(50))
+    phone_os = Column(String(20))
+    phone_os_version = Column(String(50))
+    phone_manufacturer = Column(String(100))
+    phone_model = Column(String(100))
+    phone_locked = Column(Boolean, default=False)
+    profile_photo = Column(String(500))
+    # Activity
+    last_updated_at = Column(DateTime(timezone=True))   # iCabbi LAST UPDATED
+    last_active_at = Column(DateTime(timezone=True))    # iCabbi LAST ACTIVE
+    # Payments
+    frequency = Column(String(20))                   # MONTHLY / WEEKLY
+    frequency_day = Column(Integer)
+    payment_type = Column(String(50))                # CASH / BANK_TRANSFER / CARD
+    payment_period = Column(Integer)
+    payment_terms = Column(Integer)
+    last_payment_at = Column(DateTime(timezone=True))
+    output_preference = Column(String(50))           # EMAIL etc.
+    si_id = Column(String(50))
+    # Catch-all for the ~30 deep iCabbi app-config flags (sync_delay, queue,
+    # job_timeout, gps_use_network, etc.) — stored verbatim, not first-classed
+    icabbi_config = Column(JSON)
+    # Misc
     rating = Column(Float, default=5.0)
     total_trips = Column(Integer, default=0)
     notes = Column(Text)
+    driver_type = Column(String(50), default="regular")
     created_at = Column(DateTime(timezone=True))
     updated_at = Column(DateTime(timezone=True))
-    # Admin-managed columns added via ALTER TABLE IF NOT EXISTS
     performance_score = Column(Float, default=100.0)
     commission_rate = Column(Float, default=0.30)
 
