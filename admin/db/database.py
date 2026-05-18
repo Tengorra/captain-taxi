@@ -91,6 +91,9 @@ def _seed_default_settings():
             ("owner_alerts_enabled", "true", "Send WhatsApp alerts to owner"),
             ("amara_alerts_enabled", "true", "Send WhatsApp alerts to Amara"),
             ("weekly_report_day", "monday", "Day to send weekly email report"),
+            ("driver_mandatory_fields",
+             '["first_name","last_name","phone"]',
+             "JSON array of state-key names that must be set when adding a driver manually"),
         ]
         for key, value, desc in defaults:
             existing = db.query(Settings).filter_by(key=key).first()

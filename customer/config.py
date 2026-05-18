@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Internal service URLs
     dispatch_agent_url: str = "http://dispatch:8001"
     dispatch_agent_api_key: str = ""
+    admin_agent_url: str = "http://admin:8006"
 
     # Owner & company
     owner_phone: str = "+13068811542"

@@ -236,6 +236,24 @@ export function OwnerStatements() {
     ]}
     list={() => api.listOwnerStatements()}
     create={(d) => api.createOwnerStatement(d)}
+    headerExtra={(reload) => (
+      <button
+        onClick={async () => {
+          try {
+            const r = await api.generateOwnerStatements()
+            alert(`Generated ${r.created_count} statement(s) for ${r.period_start} → ${r.period_end}\n` +
+                  `Skipped (already exist): ${r.skipped_count}`)
+            reload()
+          } catch (e: any) {
+            alert(`Failed: ${e?.message || e}`)
+          }
+        }}
+        className="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 px-3 py-2 rounded-lg text-xs font-medium"
+        title="Roll up completed trips for last calendar month into draft statements"
+      >
+        Generate last month
+      </button>
+    )}
   />
 }
 

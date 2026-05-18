@@ -54,6 +54,20 @@ export default function Drivers() {
     [applied]
   )
 
+  // Server-driven list of required fields for the manual "Add Driver" form.
+  // Falls back to first_name/last_name/phone if the setting is missing.
+  const { data: settingsMap } = useApi(() => api.getSettings(), [])
+  const requiredFields: string[] = useMemo(() => {
+    const raw = (settingsMap as Record<string, { value: string }> | null)?.driver_mandatory_fields?.value
+    if (!raw) return ['first_name', 'last_name', 'phone']
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed.map(String) : ['first_name', 'last_name', 'phone']
+    } catch {
+      return ['first_name', 'last_name', 'phone']
+    }
+  }, [settingsMap])
+
   const filtered = useMemo(() => {
     if (!allDrivers) return []
     let r = [...allDrivers]
@@ -337,8 +351,12 @@ export default function Drivers() {
   }
 
   const handleAddDriver = async () => {
-    if (!newDriver.first_name.trim() || !newDriver.last_name.trim() || !newDriver.phone.trim()) {
-      setAddError('First name, last name, and phone are required.')
+    const missing = requiredFields.filter(k => {
+      const v = (newDriver as Record<string, unknown>)[k]
+      return v === undefined || v === null || String(v).trim() === ''
+    })
+    if (missing.length > 0) {
+      setAddError(`Required: ${missing.join(', ')}`)
       return
     }
     setAddLoading(true)

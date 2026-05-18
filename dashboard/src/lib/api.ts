@@ -264,6 +264,11 @@ export const api = {
     request<any[]>(`/receipts/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
   createReceipt: (data: Record<string, unknown>) =>
     request(`/receipts/`, { method: 'POST', body: JSON.stringify(data) }),
+  createReceiptFromTrip: (trip_id: string, item_codes?: string[], sent_to_email?: string) =>
+    request(`/receipts/from-trip`, {
+      method: 'POST',
+      body: JSON.stringify({ trip_id, item_codes, sent_to_email }),
+    }),
   markReceiptSent: (id: number) =>
     request(`/receipts/${id}/mark-sent`, { method: 'POST' }),
 
@@ -272,6 +277,15 @@ export const api = {
     request<any[]>(`/owner-statements/${params ? '?' + new URLSearchParams(params as Record<string, string>) : ''}`),
   createOwnerStatement: (data: Record<string, unknown>) =>
     request(`/owner-statements/`, { method: 'POST', body: JSON.stringify(data) }),
+  generateOwnerStatements: (period_start?: string, period_end?: string) =>
+    request<{
+      period_start: string; period_end: string; commission_rate: number;
+      created_count: number; skipped_count: number;
+      created_ids: number[]; skipped_vehicle_refs: string[];
+    }>(`/owner-statements/generate`, {
+      method: 'POST',
+      body: JSON.stringify(period_start && period_end ? { period_start, period_end } : {}),
+    }),
   markStatementSent: (id: number) =>
     request(`/owner-statements/${id}/mark-sent`, { method: 'POST' }),
   markStatementPaid: (id: number) =>

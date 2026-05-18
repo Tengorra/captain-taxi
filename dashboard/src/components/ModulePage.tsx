@@ -20,6 +20,7 @@ export interface ModulePageProps {
   create: (data: Record<string, unknown>) => Promise<any>
   remove?: (id: number) => Promise<any>
   defaults?: Record<string, unknown>
+  headerExtra?: (reload: () => void) => React.ReactNode
 }
 
 export default function ModulePage(p: ModulePageProps) {
@@ -62,7 +63,8 @@ export default function ModulePage(p: ModulePageProps) {
           <h1 className="text-2xl font-bold text-white">{p.title}</h1>
           {p.description && <p className="text-sm text-gray-400 mt-1">{p.description}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {p.headerExtra?.(reload)}
           <button onClick={() => reload()} className="btn-ghost p-2 rounded-lg" title="Refresh">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>

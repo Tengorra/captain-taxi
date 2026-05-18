@@ -5,8 +5,16 @@ from typing import Optional
 from datetime import date, datetime, timezone
 from ...db.database import get_db
 from ...db.models import OwnerStatement
+from ...services.owner_statements_service import (
+    generate_for_period, generate_for_last_month,
+)
 
 router = APIRouter(prefix="/owner-statements", tags=["owner-statements"])
+
+
+class GenerateIn(BaseModel):
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
 
 
 class StatementIn(BaseModel):
@@ -72,3 +80,14 @@ def mark_paid(sid: int, db: Session = Depends(get_db)):
     s.status = "paid"; s.paid_at = datetime.now(timezone.utc)
     db.commit()
     return _row(s)
+
+
+@router.post("/generate")
+def generate(body: GenerateIn):
+    """Roll up completed trips for a period into draft statements per
+    vehicle_ref. Omit body to generate for the previous calendar month."""
+    if body.period_start and body.period_end:
+        if body.period_end < body.period_start:
+            raise HTTPException(400, "period_end must be on/after period_start")
+        return generate_for_period(body.period_start, body.period_end)
+    return generate_for_last_month()
