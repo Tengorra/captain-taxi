@@ -198,6 +198,71 @@ def list_vehicles(
     return [_serialize(v) for v in q.order_by(Vehicle.vehicle_ref).all()]
 
 
+@router.get("/{vehicle_id}")
+def get_vehicle(vehicle_id: str, db: Session = Depends(get_db)):
+    v = db.query(Vehicle).filter_by(id=vehicle_id).first()
+    if not v:
+        raise HTTPException(404, "Vehicle not found")
+    return _serialize_full(v, db)
+
+
+@router.patch("/{vehicle_id}")
+def update_vehicle(vehicle_id: str, body: VehicleCreate, db: Session = Depends(get_db)):
+    v = db.query(Vehicle).filter_by(id=vehicle_id).first()
+    if not v:
+        raise HTTPException(404, "Vehicle not found")
+
+    data = body.model_dump(exclude_unset=True)
+
+    # Date / datetime parsing — same set the CSV importer normalises.
+    dt_fields = {
+        "nct_mot_expiry", "plate_expiry", "road_tax_expiry",
+        "council_compliance_expiry", "hire_expiry",
+    }
+    for key in dt_fields:
+        if key in data:
+            setattr(v, key, _parse_dt(data.pop(key)))
+    if "insurance_expiry" in data:
+        v.insurance_expiry = _parse_d(data.pop("insurance_expiry"))
+
+    # plate gets normalised; registration kept verbatim.
+    if "plate" in data and data["plate"]:
+        v.plate = data["plate"].upper().strip()
+        data.pop("plate")
+    elif "plate" in data:
+        data.pop("plate")
+
+    # Driver linkage by ref — only if explicit driver_id wasn't supplied.
+    if "driver_vehicle_ref" in data and "driver_id" not in data:
+        ref = data.pop("driver_vehicle_ref")
+        if ref:
+            d = db.query(Driver).filter(Driver.vehicle_ref == ref).first()
+            if d:
+                v.driver_id = d.id
+
+    for field, val in data.items():
+        if hasattr(v, field):
+            setattr(v, field, val)
+
+    db.commit()
+    db.refresh(v)
+    return _serialize_full(v, db)
+
+
+@router.delete("/{vehicle_id}")
+def delete_vehicle(vehicle_id: str, db: Session = Depends(get_db)):
+    """Soft-delete — iCabbi keeps deleted rows around for audit. Sets
+    is_deleted=true and is_active=false; the row stays in the database so
+    historical trips that reference it still resolve."""
+    v = db.query(Vehicle).filter_by(id=vehicle_id).first()
+    if not v:
+        raise HTTPException(404, "Vehicle not found")
+    v.is_deleted = True
+    v.is_active = False
+    db.commit()
+    return {"ok": True, "id": vehicle_id}
+
+
 def _serialize(v: Vehicle) -> dict:
     return {
         "id": v.id,
@@ -222,3 +287,58 @@ def _serialize(v: Vehicle) -> dict:
         "executive": bool(v.executive),
         "driver_id": v.driver_id,
     }
+
+
+def _serialize_full(v: Vehicle, db: Session) -> dict:
+    """Full record — used by GET/{id} and PATCH/{id} so the edit form
+    sees every iCabbi vehicle-dump field, not just the summary columns."""
+    base = _serialize(v)
+
+    # Resolve the linked driver, if any, so the UI can show the owner name.
+    driver_info = None
+    if v.driver_id:
+        d = db.query(Driver).filter_by(id=v.driver_id).first()
+        if d:
+            display_name = (d.name or
+                            f"{(d.first_name or '').strip()} {(d.last_name or '').strip()}".strip()
+                            or "—")
+            driver_info = {
+                "id": d.id,
+                "name": display_name,
+                "icabbi_ref": d.icabbi_ref,
+                "vehicle_ref": d.vehicle_ref,
+            }
+
+    base.update({
+        "internal_system_id": v.internal_system_id,
+        "insurance": v.insurance,
+        "road_tax_expiry": v.road_tax_expiry.isoformat() if v.road_tax_expiry else None,
+        "owner_driver": bool(v.owner_driver),
+        "device_identifier": v.device_identifier,
+        "sensors": v.sensors,
+        "payment_device": v.payment_device,
+        "payment_version": v.payment_version,
+        "light_control": v.light_control,
+        "status_control": v.status_control,
+        "vehicle_phone": v.vehicle_phone,
+        "co2_emission": v.co2_emission,
+        "credit_card_payments": bool(v.credit_card_payments),
+        "wifi": bool(v.wifi),
+        "saloon": bool(v.saloon),
+        "good_condition": bool(v.good_condition),
+        "average_condition": bool(v.average_condition),
+        "seater_4": bool(v.seater_4),
+        "seater_5": bool(v.seater_5),
+        "seater_6": bool(v.seater_6),
+        "seater_7": bool(v.seater_7),
+        "seater_8": bool(v.seater_8),
+        "body_low_rider": bool(v.body_low_rider),
+        "body_estate": bool(v.body_estate),
+        "body_high_rider": bool(v.body_high_rider),
+        "body_sedan": bool(v.body_sedan),
+        "body_minivan": bool(v.body_minivan),
+        "body_suv": bool(v.body_suv),
+        "comments": v.comments,
+        "driver": driver_info,
+    })
+    return base

@@ -197,6 +197,14 @@ export const api = {
     request<Record<string, unknown>>('/vehicles/', {
       method: 'POST', body: JSON.stringify(data),
     }),
+  getVehicle: (id: string) =>
+    request<Record<string, unknown>>(`/vehicles/${id}`),
+  updateVehicle: (id: string, data: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/vehicles/${id}`, {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
+  deleteVehicle: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/vehicles/${id}`, { method: 'DELETE' }),
 
   // Escalations
   listEscalations: (status?: string) =>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { api } from '../lib/api'
 import { Car, CheckCircle, XCircle } from 'lucide-react'
@@ -39,6 +40,7 @@ function fmtDate(s?: string): string {
 }
 
 export default function Vehicles() {
+  const navigate = useNavigate()
   const [refQ, setRefQ]     = useState('')
   const [plateQ, setPlateQ] = useState('')
   const [makeQ, setMakeQ]   = useState('')
@@ -182,14 +184,21 @@ export default function Vehicles() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-800/60 border-b border-gray-700">
-                {['REF', 'PLATE', 'MAKE', 'MODEL', 'COLOR', 'YEAR', 'INSURANCE EXP', 'PLATE EXP', 'NCT/MOT EXP', 'WHEELCHAIR', 'ACTIVE'].map(col => (
+                {['REF', 'PLATE', 'MAKE', 'MODEL', 'COLOR', 'YEAR', 'INSURANCE EXP', 'PLATE EXP', 'NCT/MOT EXP', 'WHEELCHAIR', 'ACTIVE', 'EDIT'].map(col => (
                   <th key={col} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-400 tracking-widest uppercase whitespace-nowrap border-r border-gray-700/50 last:border-0">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/60">
               {paged.map(v => (
-                <tr key={v.id} className={clsx('hover:bg-gray-800/40 transition-colors', v.is_deleted && 'opacity-50')}>
+                <tr
+                  key={v.id}
+                  onClick={() => navigate(`/vehicles/${v.id}`)}
+                  className={clsx(
+                    'hover:bg-gray-800/40 transition-colors cursor-pointer',
+                    v.is_deleted && 'opacity-50',
+                  )}
+                >
                   <td className="px-3 py-2.5 text-amber-300 font-mono text-xs whitespace-nowrap">{v.vehicle_ref || v.id.slice(0, 8).toUpperCase()}</td>
                   <td className="px-3 py-2.5 text-white font-mono text-xs whitespace-nowrap">{v.plate || '—'}</td>
                   <td className="px-3 py-2.5 text-gray-300 text-xs whitespace-nowrap">{v.make || '—'}</td>
@@ -204,6 +213,12 @@ export default function Vehicles() {
                   </td>
                   <td className="px-3 py-2.5 text-xs">
                     {v.is_active ? <CheckCircle size={14} className="text-emerald-400" /> : <XCircle size={14} className="text-red-400/50" />}
+                  </td>
+                  <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => navigate(`/vehicles/${v.id}`)}
+                      className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors tracking-wide"
+                    >EDIT</button>
                   </td>
                 </tr>
               ))}
