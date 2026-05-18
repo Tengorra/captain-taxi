@@ -18,8 +18,9 @@ from config import get_settings
 settings = get_settings()
 
 VAPI_BASE   = "https://api.vapi.ai"
+_API_KEY    = settings.vapi_api_key or settings.vapi_private_key
 HEADERS     = {
-    "Authorization": f"Bearer {settings.vapi_api_key}",
+    "Authorization": f"Bearer {_API_KEY}",
     "Content-Type": "application/json",
 }
 CONFIG_FILE = pathlib.Path(__file__).parent / "assistant_config.json"

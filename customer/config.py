@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     twilio_phone_from: str = "+16393983373"
 
     # Vapi
-    vapi_private_key: str = ""
+    vapi_api_key: str = ""
+    vapi_private_key: str = ""  # legacy alias — prefer vapi_api_key
     vapi_phone_saskatoon: str = "+13062420000"
     vapi_phone_regina: str = "+13067752222"
+    vapi_phone_number_id_saskatoon: str = ""
+    vapi_phone_number_id_regina: str = ""
     vapi_webhook_secret: str = ""
 
     # Database (component vars)
