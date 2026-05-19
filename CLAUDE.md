@@ -29,7 +29,7 @@ Captain Taxi is a multi-agent AI system that runs a taxi company in Saskatoon & 
 |---|---|---|
 | orchestrator | 8000 | FastAPI + Claude |
 | dispatch | 8001 | FastAPI |
-| customer | 8002 | FastAPI + Claude + Vapi + Twilio |
+| customer | 8002 | FastAPI + Claude + ElevenLabs + Twilio |
 | drivers | 8003 | FastAPI + Claude |
 | accounts | 8004 | FastAPI |
 | compliance | 8005 | FastAPI |
@@ -47,7 +47,8 @@ Captain Taxi is a multi-agent AI system that runs a taxi company in Saskatoon & 
 
 ## Key Rules for Claude
 
-- **Do not invent credentials.** All API keys (Twilio, Vapi, QuickBooks, iCabbi) must come from the owner's `.env` file.
+- **Voice stack is ElevenLabs Conversational AI + Twilio. NOT Vapi.** Do not suggest, scaffold, or reintroduce Vapi. Phone calls go: Twilio number → ElevenLabs Conversational AI (handles STT, LLM, TTS, turn-taking) → webhook to `customer/routers/elevenlabs.py` for tool execution (`create_booking` etc.) → dispatch service.
+- **Do not invent credentials.** All API keys (Twilio, ElevenLabs, QuickBooks, iCabbi) must come from the owner's `.env` file.
 - **Do not over-engineer.** Build what is needed now, not hypothetical future features.
 - **Keep services decoupled.** Services communicate via HTTP or Redis pub/sub — never direct DB cross-service queries.
 - **Security first.** No command injection, no SQL injection, validate at system boundaries only.

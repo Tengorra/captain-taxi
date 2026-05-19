@@ -10,7 +10,7 @@
 |---|---|---|---|
 | orchestrator | 8000 | FastAPI + Claude | Event router, escalations, daily digest |
 | dispatch | 8001 | FastAPI | Trip booking, driver assignment, iCabbi/Autocab |
-| customer | 8002 | FastAPI + Claude + Vapi + Twilio | Phone, SMS, WhatsApp, web chat |
+| customer | 8002 | FastAPI + Claude + ElevenLabs + Twilio | Phone, SMS, WhatsApp, web chat |
 | drivers | 8003 | FastAPI + Claude | Onboarding, scheduling, performance, HR |
 | accounts | 8004 | FastAPI | Invoicing, driver payouts, QuickBooks |
 | compliance | 8005 | FastAPI | Document renewals, auto-suspension sweeps |
@@ -46,7 +46,8 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - Claude conversation loop (multi-turn, tool use): `customer/ai/conversation.py` — DONE
 - Tools: create_booking, get_trip_status, cancel_trip, fare_estimate, log_complaint, lookup_bookings — DONE
 - Twilio webhook (SMS + WhatsApp inbound): `customer/routers/twilio.py` — DONE
-- Vapi webhook (phone calls): `customer/routers/vapi.py` — DONE
+- ElevenLabs Conversational AI webhook (phone calls): `customer/routers/elevenlabs.py` — DONE (replaces Vapi as of session 8)
+- ElevenLabs agent config (paste-into-dashboard): `customer/elevenlabs/agent_config.json` — DONE
 - Web chat endpoint: `customer/routers/chat.py` — DONE
 - DB models (customers, bookings, complaints): `customer/db/models.py` — DONE
 - Dispatch service client: `customer/services/dispatch.py` — DONE
@@ -132,7 +133,7 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - ✅ `alembic/` — migrations present (root + dispatch have their own)
 - ✅ `deploy.sh` — deployment script exists
 - ⚠️ QuickBooks OAuth — credentials needed (`QB_CLIENT_ID`, `QB_CLIENT_SECRET`, `QB_REFRESH_TOKEN`, `QB_REALM_ID`)
-- ⚠️ Vapi — needs Vapi API key and phone number configured
+- ⚠️ ElevenLabs Conversational AI — needs `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_WEBHOOK_SECRET` in `.env`; agent created in dashboard from `customer/elevenlabs/agent_config.json` and connected to the Twilio Saskatoon + Regina voice numbers
 - ⚠️ iCabbi/Autocab — dispatch integration needs live credentials
 
 ---
@@ -147,7 +148,8 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [ ] Apply Alembic migration `002_icabbi_driver_fields` on staging/prod DB before next iCabbi import
 - [x] Settings: mandatory-field config UI — manual "Add Driver" required fields are now user-tunable from Settings page (stored in `driver_required_fields` setting; default preserves prior behavior: first_name, last_name, phone)
 - [ ] QuickBooks: complete OAuth flow and token refresh logic
-- [ ] Vapi: configure phone number and test call flow end-to-end
+- [ ] ElevenLabs Conversational AI: create agent in dashboard from `customer/elevenlabs/agent_config.json` (replace `BASE_URL`), connect Twilio numbers, set webhook secret, and test inbound call → create_booking → trip appears in dispatch portal → dispatcher manually enters into iCabbi
+- [x] **Decision (session 8):** Voice stack is ElevenLabs Conversational AI + Twilio. Vapi has been removed. Dispatch flow: caller → ElevenLabs agent → tool webhook → our dispatch service. Dispatchers manually re-enter trips into iCabbi for now; future work is iCabbi API integration or migrating off iCabbi entirely.
 - [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated)
 - [ ] Load test / stress test with simulated driver fleet
 - [ ] Production deployment on a server (VPS or cloud)
@@ -173,5 +175,5 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
-| 8 | 2026-05-19 | Settings UI now controls manual "Add Driver" required-field rules. New setting `driver_required_fields` (CSV) seeded with default `first_name,last_name,phone`. `Drivers.tsx` validates dynamically against the setting and renders `*` markers from the same source. `PUT /settings/{key}` now upserts so the dashboard works even if seed hasn't run on the target DB. Files: `admin/db/database.py`, `admin/api/routes/settings.py`, `dashboard/src/pages/Settings.tsx`, `dashboard/src/pages/Drivers.tsx`. |
+| 8 | 2026-05-19 | (1) Settings UI now controls manual "Add Driver" required-field rules. New setting `driver_required_fields` (CSV) seeded with default `first_name,last_name,phone`. `Drivers.tsx` validates dynamically against the setting and renders `*` markers from the same source. `PUT /settings/{key}` now upserts. (2) **Voice stack migrated from Vapi → ElevenLabs Conversational AI + Twilio.** Deleted `customer/routers/vapi.py` and `customer/vapi/`. Added `customer/routers/elevenlabs.py` (tool + post-call webhooks, HMAC signature verification, path-routed + body-routed tool shapes). Added `customer/elevenlabs/agent_config.json` for dashboard paste-in. Swapped `vapi_*` config for `elevenlabs_*` in `customer/config.py` and `customer/.env.example`. CLAUDE.md now contains an explicit "NOT Vapi" rule. |
 | 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |

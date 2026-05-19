@@ -1,0 +1,113 @@
+{
+  "_comment": "Captain Taxi voice agent — paste into ElevenLabs Conversational AI dashboard (https://elevenlabs.io/app/conversational-ai). Replace BASE_URL with the public hostname of the customer service (e.g. https://customer.captaintaxi.ca). Connect the agent to the Saskatoon + Regina Twilio numbers on the 'Phone numbers' tab. Set the webhook secret to match ELEVENLABS_WEBHOOK_SECRET in .env.",
+  "name": "Captain Taxi Voice Agent",
+  "language": "en",
+  "first_message": "Thank you for calling Captain Taxi! How can I help you today?",
+  "system_prompt": "You are the AI voice agent for Captain Taxi, a professional taxi company serving Saskatoon and Regina, Saskatchewan, Canada.\n\nYou are speaking on the phone. Keep responses SHORT — one or two sentences — because this is a voice call. Never list things with bullet points. Speak naturally.\n\nYour job:\n1. Take taxi bookings (collect pickup address, dropoff address, name, phone number, passenger count, time).\n2. Give trip status and ETA.\n3. Cancel bookings.\n4. Give fare estimates.\n5. Answer questions about the service.\n6. Handle complaints — minor ones you resolve, serious safety complaints you escalate.\n\nOnce you have a booking ready, call the create_booking tool. Do not say you are calling a tool. After confirming the booking say: 'Great, you're all set! Your booking is confirmed. A driver will be with you shortly. Is there anything else I can help you with?'\n\nPricing: base $4.50 plus $2.20 per km. Airport from downtown Saskatoon is about $25 to $35. Minimum fare $10.\n\nService areas: Saskatoon and Regina. 24/7.\nPhone numbers: Saskatoon 306-242-0000, Regina 306-775-2222.\n\nFor serious safety complaints, tell the caller a manager will phone them back within one hour and call log_complaint with severity 'serious'. For minor complaints call log_complaint with severity 'minor' and apologise.\n\nAlways be warm, friendly, professional. Canadian English. Brief responses.",
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "temperature": 0.4,
+    "max_tokens": 512
+  },
+  "tts": {
+    "provider": "elevenlabs",
+    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+    "model": "eleven_turbo_v2_5",
+    "stability": 0.5,
+    "similarity_boost": 0.75
+  },
+  "asr": {
+    "provider": "elevenlabs",
+    "language": "en"
+  },
+  "turn_detection": {
+    "silence_end_call_seconds": 20,
+    "max_duration_seconds": 600
+  },
+  "tools": [
+    {
+      "type": "webhook",
+      "name": "create_booking",
+      "description": "Create a taxi booking once you have all required details.",
+      "url": "BASE_URL/webhook/elevenlabs/tool/create_booking",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pickup_address":  { "type": "string", "description": "Full pickup address" },
+          "dropoff_address": { "type": "string", "description": "Full dropoff address" },
+          "customer_name":   { "type": "string", "description": "Customer full name" },
+          "customer_phone":  { "type": "string", "description": "Customer phone number" },
+          "num_passengers":  { "type": "integer", "description": "Number of passengers", "default": 1 },
+          "pickup_time":     { "type": "string", "description": "ISO 8601 pickup time or ASAP", "default": "ASAP" },
+          "city":            { "type": "string", "description": "saskatoon or regina", "enum": ["saskatoon", "regina"] },
+          "notes":           { "type": "string", "description": "Special requirements" }
+        },
+        "required": ["pickup_address", "dropoff_address", "customer_name", "customer_phone"]
+      }
+    },
+    {
+      "type": "webhook",
+      "name": "get_trip_status",
+      "description": "Get the current status and ETA of a trip.",
+      "url": "BASE_URL/webhook/elevenlabs/tool/get_trip_status",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "trip_id": { "type": "string" }
+        },
+        "required": ["trip_id"]
+      }
+    },
+    {
+      "type": "webhook",
+      "name": "cancel_trip",
+      "description": "Cancel an existing booking.",
+      "url": "BASE_URL/webhook/elevenlabs/tool/cancel_trip",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "trip_id": { "type": "string" },
+          "reason":  { "type": "string", "default": "Customer request" }
+        },
+        "required": ["trip_id"]
+      }
+    },
+    {
+      "type": "webhook",
+      "name": "get_fare_estimate",
+      "description": "Estimate the fare for a trip.",
+      "url": "BASE_URL/webhook/elevenlabs/tool/get_fare_estimate",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pickup_address":  { "type": "string" },
+          "dropoff_address": { "type": "string" },
+          "after_hours":     { "type": "boolean", "default": false }
+        },
+        "required": ["pickup_address", "dropoff_address"]
+      }
+    },
+    {
+      "type": "webhook",
+      "name": "log_complaint",
+      "description": "Log a customer complaint. Use severity 'serious' for safety or misconduct.",
+      "url": "BASE_URL/webhook/elevenlabs/tool/log_complaint",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "severity":    { "type": "string", "enum": ["minor", "serious"] },
+          "trip_id":     { "type": "string" }
+        },
+        "required": ["description", "severity"]
+      }
+    }
+  ],
+  "post_call_webhook_url": "BASE_URL/webhook/elevenlabs/post-call"
+}

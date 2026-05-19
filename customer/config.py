@@ -15,11 +15,16 @@ class Settings(BaseSettings):
     twilio_whatsapp_from: str = "whatsapp:+13068811542"
     twilio_phone_from: str = "+16393983373"
 
-    # Vapi
-    vapi_private_key: str = ""
-    vapi_phone_saskatoon: str = "+13062420000"
-    vapi_phone_regina: str = "+13067752222"
-    vapi_webhook_secret: str = ""
+    # ElevenLabs Conversational AI
+    # The agent is configured in the ElevenLabs dashboard; we only need the
+    # API key (for the optional provisioning script) and the webhook secret
+    # to verify inbound tool-call + post-call webhooks.
+    elevenlabs_api_key: str = ""
+    elevenlabs_agent_id: str = ""
+    elevenlabs_webhook_secret: str = ""
+    # Inbound Twilio numbers that ElevenLabs answers on
+    twilio_voice_saskatoon: str = "+13062420000"
+    twilio_voice_regina: str = "+13067752222"
 
     # Database (component vars)
     postgres_host: str = "db"
