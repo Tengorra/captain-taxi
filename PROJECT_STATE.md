@@ -150,7 +150,7 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 - [ ] QuickBooks: complete OAuth flow and token refresh logic
 - [ ] ElevenLabs Conversational AI: create agent in dashboard from `customer/elevenlabs/agent_config.json` (replace `BASE_URL`), connect Twilio numbers, set webhook secret, and test inbound call → create_booking → trip appears in dispatch portal → dispatcher manually enters into iCabbi
 - [x] **Decision (session 8):** Voice stack is ElevenLabs Conversational AI + Twilio. Vapi has been removed. Dispatch flow: caller → ElevenLabs agent → tool webhook → our dispatch service. Dispatchers manually re-enter trips into iCabbi for now; future work is iCabbi API integration or migrating off iCabbi entirely.
-- [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated)
+- [ ] iCabbi/Autocab: integrate live dispatch API (currently simulated). Booking-creation endpoint to use: `POST /bookings/addComplex` — see https://api.icabbicanada.com/docs/index.html#!/bookings/bookingsAddComplex (Canada region). Open from a browser; the spec is host-allowlisted and not reachable from the Code-on-Web container's network. When implementing, add a feature flag in dispatch service so it stays off until iCabbi creds are in `.env`.
 - [ ] Load test / stress test with simulated driver fleet
 - [ ] Production deployment on a server (VPS or cloud)
 
