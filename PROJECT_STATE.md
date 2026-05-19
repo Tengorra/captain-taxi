@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-05-19 (session 8)
+**Last updated:** 2026-05-19 (session 9)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -138,13 +138,105 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 
 ---
 
+## ⚠️ Blocking E2E Failures (session 9, 2026-05-19)
+
+E2E verification ran against a native Postgres 16 + Redis 7 (Docker daemon
+unavailable in the Code-on-Web container, so `docker compose up` could not
+be executed directly). Each failure below was reproduced by importing the
+service and POSTing real requests; all of them would also surface inside
+Docker.
+
+**Blocker 1 — `.env.example` `POSTGRES_HOST=postgres` doesn't match compose service `db`.**
+`docker-compose.yml` defines the Postgres service as `db:` (line ~). All
+services receive `POSTGRES_HOST=postgres` via `env_file: .env`. The
+hostname `postgres` is not resolvable inside the compose network, so every
+service that uses the value will fail to connect on first DB call.
+`orchestrator` (`core/config.py:13`) also defaults `postgres_host="postgres"`
+— same bug. Fix: change `.env.example` to `POSTGRES_HOST=db` and the
+`core/config.py` default to `"db"`.
+
+**Blocker 2 — Root and dispatch alembic chains collide on the shared `alembic_version` table.**
+`alembic/env.py` and `dispatch/alembic/env.py` both use the default
+`alembic_version` table on the same Postgres DB. Both define their own
+revision `001`. After orchestrator's CMD stamps `002`, dispatch's
+container CMD (`alembic upgrade head && uvicorn …`) fails with
+`Can't locate revision identified by '002'` and uvicorn never starts.
+Reproduced: `cd dispatch && alembic upgrade head` after root migration
+gives `FAILED: Can't locate revision identified by '002'`. Fix options:
+(a) give each alembic chain its own `version_table` name in `env.py`
+(`context.configure(..., version_table="alembic_version_dispatch")`),
+(b) merge dispatch's migration into the root chain, or (c) drop the
+`&& uvicorn` chaining in `dispatch/Dockerfile`. (a) is the smallest change.
+
+**Blocker 3 — Schema fragmentation: per-service models don't match root migration's `drivers` table.**
+Root migration `001` creates `drivers` with columns from `core/models.py`
+(license_number, taxi_license_number, etc.). Dispatch's `Driver` model
+(`dispatch/models/driver.py`) expects `vehicle_plate`, `vehicle_model`,
+`is_active`, `last_lat`, `last_lng`, `last_location_at`. Each service uses
+`Base.metadata.create_all()` at startup, which **skips existing tables**
+(no ALTER). Result: `POST /driver` on dispatch produces
+`UndefinedColumnError: column "vehicle_plate" of relation "drivers" does
+not exist` — and E2E step 2/10 (`seed_driver`) fails with HTTP 500.
+Same class of bug exists for any model column added in a service after
+the root migration ran.
+
+**Blocker 4 — `customers.id` type mismatch breaks `bookings`/`complaints`/`conversation_logs` FKs.**
+Root migration creates `customers.id` as `VARCHAR(36)`. Customer service
+(`customer/db/models.py:51`) defines `Customer.id` as `UUID(as_uuid=True)`
+and `Booking.customer_id`, `Complaint.customer_id`, `ConversationLog.customer_id`
+as `UUID`. On customer service startup, `create_all` raises
+`asyncpg.exceptions.DatatypeMismatchError: foreign key constraint
+"bookings_customer_id_fkey" cannot be implemented. Key columns
+"customer_id" and "id" are of incompatible types: uuid and character
+varying.` → bookings/complaints/conversation_logs tables are never
+created. Any booking write from the chat/voice flow will 500. Fix:
+align types — either change root migration `001` to use `UUID` for `id`
+columns, or change service models to `String(36)`. Affects: `customers`,
+`drivers`, `trips`, `vehicles` (all `String(36)` in root, `UUID` in service models).
+
+**Blocker 5 — `docker compose up` cannot be executed in Code-on-Web.**
+The Code-on-Web container does not expose `/var/run/docker.sock`, so
+neither `docker compose up` nor `docker compose run --rm orchestrator alembic upgrade head`
+can be run from this session. Running `docker compose config` (no daemon
+required) succeeds. Verification beyond that requires either (a) a
+self-hosted runner / VPS, (b) running the stack on the owner's machine,
+or (c) Railway/Render deployment. **The orchestrator service was never
+exercised in this session** for the same reason — its only entrypoint
+is its container CMD.
+
+**Non-blocking findings:**
+- `docker-compose.yml` uses the obsolete top-level `version:` key
+  (compose warns). Harmless, remove when convenient.
+- Two unrelated unused fields in the dispatch test path: `DRIVER_LAT`,
+  `DRIVER_LNG` constants in `scripts/test_e2e.py` are correct; the test
+  itself reads cleanly until it hits Blocker 3.
+
+**What was verified successfully:**
+- `docker compose config` parses the YAML for all 11 services (no
+  structural errors).
+- Migration chain `001 → 002` (root) parses and applies cleanly on a
+  real Postgres 16 — see `alembic upgrade head` output.
+- Migration `002_icabbi_driver_fields.py` correctly adds all 30 iCabbi
+  columns, drops UNIQUE on `phone`, relaxes NOT NULL on `name`/`phone`/`city`,
+  and creates `ix_drivers_icabbi_ref` (verified with `\d drivers`).
+- `customer/main.py`, `dispatch/main.py`, `drivers/main.py` import
+  cleanly under their respective Python 3.11 venvs (per-service deps
+  installed from each `requirements.txt`).
+- `dispatch` service starts under uvicorn and `/health` returns 200.
+- `customer` service starts under uvicorn and `/health` returns
+  `{status: ok, redis: ok}` — but logs the FK error from Blocker 4 at
+  init.
+- E2E step 1/10 (health checks) passes against the two services.
+- E2E step 2/10 (driver seed) is where the test halts — root cause is
+  Blocker 3, not a script bug.
+
 ## Known Gaps / Next Tasks
 - [x] Dashboard: nginx routing bug fixed — all dashboard API paths now route to admin:8006
 - [x] E2E test script: `scripts/test_e2e.py` — full trip flow (chat → dispatch → assign → lifecycle → complete)
 - [x] Bug fix: `customer/services/dispatch.py` — wrong URL paths (`/trips` → `/dispatch/trip`), missing `city` field, `pickup_time` renamed to `scheduled_for`
 - [x] Bug fix: `customer/ai/tools.py` — added `city` field to `create_booking` tool
 - [x] Bug fix: `customer/ai/conversation.py` — passes `city` and `scheduled_for` to dispatch client
-- [ ] Run E2E test against live Docker stack: `python scripts/test_e2e.py`
+- [ ] Run E2E test against live Docker stack: `python scripts/test_e2e.py` — **ATTEMPTED session 9, blocked by 4 schema/config bugs documented above ("Blocking E2E Failures"). Test halts at step 2/10 (driver seed) with HTTP 500 due to schema drift on `drivers` table.**
 - [ ] Apply Alembic migration `002_icabbi_driver_fields` on staging/prod DB before next iCabbi import
 - [x] Settings: mandatory-field config UI — manual "Add Driver" required fields are now user-tunable from Settings page (stored in `driver_required_fields` setting; default preserves prior behavior: first_name, last_name, phone)
 - [ ] QuickBooks: complete OAuth flow and token refresh logic
@@ -175,5 +267,6 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 9 | 2026-05-19 | E2E verification (read-only, no feature work). Docker daemon unavailable in Code-on-Web — used native Postgres 16 + Redis 7. Root alembic chain `001 → 002` applies cleanly; migration 002 verified to add all 30 iCabbi columns, drop UNIQUE on phone, and relax NOT NULL on name/phone/city. `customer`/`dispatch`/`drivers` import & start cleanly; `/health` returns 200 on both. `scripts/test_e2e.py` halts at step 2/10. Logged 4 blocking bugs + 1 environmental constraint in new "Blocking E2E Failures" section: (1) `.env.example` POSTGRES_HOST=postgres doesn't match compose service `db`, (2) root and dispatch alembic chains collide on shared `alembic_version` table (dispatch container's `alembic upgrade head && uvicorn` shortcircuits, dispatch never starts), (3) per-service models drift from root migration's `drivers` schema (dispatch driver insert → `column "vehicle_plate" does not exist`), (4) `customers.id` is `VARCHAR(36)` in migration but `UUID` in customer models → bookings/complaints/conversation_logs FKs can't be created. No code changes made — verification only. |
 | 8 | 2026-05-19 | (1) Settings UI now controls manual "Add Driver" required-field rules. New setting `driver_required_fields` (CSV) seeded with default `first_name,last_name,phone`. `Drivers.tsx` validates dynamically against the setting and renders `*` markers from the same source. `PUT /settings/{key}` now upserts. (2) **Voice stack migrated from Vapi → ElevenLabs Conversational AI + Twilio.** Deleted `customer/routers/vapi.py` and `customer/vapi/`. Added `customer/routers/elevenlabs.py` (tool + post-call webhooks, HMAC signature verification, path-routed + body-routed tool shapes). Added `customer/elevenlabs/agent_config.json` for dashboard paste-in. Swapped `vapi_*` config for `elevenlabs_*` in `customer/config.py` and `customer/.env.example`. CLAUDE.md now contains an explicit "NOT Vapi" rule. |
 | 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |
