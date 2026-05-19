@@ -1,7 +1,28 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useApi, useMutation } from '../hooks/useApi'
 import { api } from '../lib/api'
 import { Save, CheckCircle, Megaphone, Send } from 'lucide-react'
+
+const DRIVER_FIELD_OPTIONS: { key: string; label: string }[] = [
+  { key: 'first_name',          label: 'First Name' },
+  { key: 'last_name',           label: 'Last Name' },
+  { key: 'phone',               label: 'Phone' },
+  { key: 'email',               label: 'Email' },
+  { key: 'address',             label: 'Address' },
+  { key: 'aka',                 label: 'A.K.A.' },
+  { key: 'mobile_phone',        label: 'Mobile Phone' },
+  { key: 'other_phone',         label: 'Other Phone' },
+  { key: 'vehicle_model',       label: 'Vehicle Model' },
+  { key: 'vehicle_plate',       label: 'Vehicle Plate' },
+  { key: 'badge_number',        label: 'Badge / PSV' },
+  { key: 'badge_expiry',        label: 'Badge Expiry' },
+  { key: 'licence_number',      label: 'Licence Number' },
+  { key: 'licence_expiry',      label: 'Licence Expiry' },
+  { key: 'tax_number',          label: 'Tax Number' },
+  { key: 'bank_name',           label: 'Bank Name' },
+  { key: 'bank_account_number', label: 'Account Number' },
+  { key: 'sort_code',           label: 'Sort Code' },
+]
 
 const SETTING_GROUPS = [
   {
@@ -35,6 +56,33 @@ export default function Settings() {
   const [annCity, setAnnCity] = useState('')
   const [annResult, setAnnResult] = useState<any>(null)
   const [annLoading, setAnnLoading] = useState(false)
+
+  const storedRequired = settings?.driver_required_fields?.value ?? 'first_name,last_name,phone'
+  const [requiredDraft, setRequiredDraft] = useState<string[] | null>(null)
+  const [requiredSaved, setRequiredSaved] = useState(false)
+
+  const requiredCurrent = useMemo(
+    () => storedRequired.split(',').map(s => s.trim()).filter(Boolean),
+    [storedRequired],
+  )
+  const requiredSelected = requiredDraft ?? requiredCurrent
+  const requiredDirty = requiredDraft !== null &&
+    [...requiredDraft].sort().join(',') !== [...requiredCurrent].sort().join(',')
+
+  const toggleRequired = (key: string) => {
+    const next = new Set(requiredSelected)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    setRequiredDraft(Array.from(next))
+  }
+
+  const saveRequired = async () => {
+    const value = (requiredDraft ?? []).join(',')
+    await updateSetting('driver_required_fields', value)
+    setRequiredDraft(null)
+    setRequiredSaved(true)
+    setTimeout(() => setRequiredSaved(false), 2000)
+    reload()
+  }
 
   const handleSave = async (key: string) => {
     const value = edits[key]
@@ -101,6 +149,46 @@ export default function Settings() {
           </div>
         </div>
       ))}
+
+      {/* Driver form required fields */}
+      <div className="card">
+        <h2 className="font-semibold text-sm text-gray-300 mb-1">Driver Form — Required Fields</h2>
+        <p className="text-xs text-gray-600 mb-4">
+          Tick fields that must be filled when adding a driver manually on the Drivers page. Applies to the manual "Add New Driver" form only — CSV imports stay permissive.
+        </p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
+          {DRIVER_FIELD_OPTIONS.map(opt => (
+            <label key={opt.key} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer hover:text-white">
+              <input
+                type="checkbox"
+                className="accent-amber-500"
+                checked={requiredSelected.includes(opt.key)}
+                onChange={() => toggleRequired(opt.key)}
+                disabled={loading}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={saveRequired}
+            className={requiredSaved ? 'btn-success' : 'btn-primary'}
+            disabled={!requiredDirty || loading}
+          >
+            {requiredSaved ? <CheckCircle size={15} /> : <Save size={15} />}
+            {requiredSaved ? 'Saved' : 'Save Required Fields'}
+          </button>
+          {requiredDirty && (
+            <button
+              onClick={() => setRequiredDraft(null)}
+              className="btn-ghost text-xs"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Announcement blaster */}
       <div className="card">

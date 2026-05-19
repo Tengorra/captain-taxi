@@ -29,8 +29,10 @@ def get_setting(key: str, db: Session = Depends(get_db)):
 def update_setting(key: str, body: SettingUpdate, db: Session = Depends(get_db)):
     s = db.query(Settings).filter_by(key=key).first()
     if not s:
-        raise HTTPException(404, f"Setting '{key}' not found")
-    s.value = body.value
+        s = Settings(key=key, value=body.value)
+        db.add(s)
+    else:
+        s.value = body.value
     db.commit()
     return {"ok": True, "key": key, "value": body.value}
 

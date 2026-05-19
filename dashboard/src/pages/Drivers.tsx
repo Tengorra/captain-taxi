@@ -54,6 +54,17 @@ export default function Drivers() {
     [applied]
   )
 
+  const { data: settings } = useApi(() => api.getSettings(), [])
+
+  const requiredFields = useMemo<string[]>(() => {
+    const raw = settings?.driver_required_fields?.value
+    if (!raw) return ['first_name', 'last_name', 'phone']
+    return raw.split(',').map(s => s.trim()).filter(Boolean)
+  }, [settings])
+
+  const fieldLabel = (key: string, base: string) =>
+    requiredFields.includes(key) ? `${base} *` : base
+
   const filtered = useMemo(() => {
     if (!allDrivers) return []
     let r = [...allDrivers]
@@ -337,8 +348,13 @@ export default function Drivers() {
   }
 
   const handleAddDriver = async () => {
-    if (!newDriver.first_name.trim() || !newDriver.last_name.trim() || !newDriver.phone.trim()) {
-      setAddError('First name, last name, and phone are required.')
+    const missing = requiredFields.filter(f => {
+      const v = (newDriver as Record<string, string>)[f]
+      return !v || !String(v).trim()
+    })
+    if (missing.length > 0) {
+      const pretty = missing.map(f => f.replace(/_/g, ' ')).join(', ')
+      setAddError(`Required field${missing.length > 1 ? 's' : ''} missing: ${pretty}.`)
       return
     }
     setAddLoading(true)
@@ -609,9 +625,9 @@ export default function Drivers() {
           )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <AddSection title="Details">
-              <AddField label="PHONE *"><input className="input w-full text-sm" value={newDriver.phone} onChange={e => setNewDriver(d => ({ ...d, phone: e.target.value }))} /></AddField>
-              <AddField label="VEHICLE MODEL"><input className="input w-full text-sm" value={newDriver.vehicle_model} onChange={e => setNewDriver(d => ({ ...d, vehicle_model: e.target.value }))} /></AddField>
-              <AddField label="VEHICLE PLATE"><input className="input w-full text-sm uppercase" value={newDriver.vehicle_plate} onChange={e => setNewDriver(d => ({ ...d, vehicle_plate: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('phone', 'PHONE')}><input className="input w-full text-sm" value={newDriver.phone} onChange={e => setNewDriver(d => ({ ...d, phone: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('vehicle_model', 'VEHICLE MODEL')}><input className="input w-full text-sm" value={newDriver.vehicle_model} onChange={e => setNewDriver(d => ({ ...d, vehicle_model: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('vehicle_plate', 'VEHICLE PLATE')}><input className="input w-full text-sm uppercase" value={newDriver.vehicle_plate} onChange={e => setNewDriver(d => ({ ...d, vehicle_plate: e.target.value }))} /></AddField>
               <AddField label="STATUS">
                 <select className="input w-full text-sm" value={newDriver.status} onChange={e => setNewDriver(d => ({ ...d, status: e.target.value }))}>
                   <option value="pending">PENDING / ONBOARDING</option>
@@ -635,13 +651,13 @@ export default function Drivers() {
               </AddField>
             </AddSection>
             <AddSection title="Personal">
-              <AddField label="FIRST NAME *"><input className="input w-full text-sm" value={newDriver.first_name} onChange={e => setNewDriver(d => ({ ...d, first_name: e.target.value }))} /></AddField>
-              <AddField label="LAST NAME *"><input className="input w-full text-sm" value={newDriver.last_name} onChange={e => setNewDriver(d => ({ ...d, last_name: e.target.value }))} /></AddField>
-              <AddField label="A.K.A."><input className="input w-full text-sm" value={newDriver.aka} onChange={e => setNewDriver(d => ({ ...d, aka: e.target.value }))} /></AddField>
-              <AddField label="ADDRESS"><input className="input w-full text-sm" value={newDriver.address} onChange={e => setNewDriver(d => ({ ...d, address: e.target.value }))} /></AddField>
-              <AddField label="EMAIL"><input className="input w-full text-sm" type="email" value={newDriver.email} onChange={e => setNewDriver(d => ({ ...d, email: e.target.value }))} /></AddField>
-              <AddField label="MOBILE PHONE"><input className="input w-full text-sm" value={newDriver.mobile_phone} onChange={e => setNewDriver(d => ({ ...d, mobile_phone: e.target.value }))} /></AddField>
-              <AddField label="OTHER PHONE"><input className="input w-full text-sm" value={newDriver.other_phone} onChange={e => setNewDriver(d => ({ ...d, other_phone: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('first_name', 'FIRST NAME')}><input className="input w-full text-sm" value={newDriver.first_name} onChange={e => setNewDriver(d => ({ ...d, first_name: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('last_name', 'LAST NAME')}><input className="input w-full text-sm" value={newDriver.last_name} onChange={e => setNewDriver(d => ({ ...d, last_name: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('aka', 'A.K.A.')}><input className="input w-full text-sm" value={newDriver.aka} onChange={e => setNewDriver(d => ({ ...d, aka: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('address', 'ADDRESS')}><input className="input w-full text-sm" value={newDriver.address} onChange={e => setNewDriver(d => ({ ...d, address: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('email', 'EMAIL')}><input className="input w-full text-sm" type="email" value={newDriver.email} onChange={e => setNewDriver(d => ({ ...d, email: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('mobile_phone', 'MOBILE PHONE')}><input className="input w-full text-sm" value={newDriver.mobile_phone} onChange={e => setNewDriver(d => ({ ...d, mobile_phone: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('other_phone', 'OTHER PHONE')}><input className="input w-full text-sm" value={newDriver.other_phone} onChange={e => setNewDriver(d => ({ ...d, other_phone: e.target.value }))} /></AddField>
               <AddField label="SEX">
                 <select className="input w-full text-sm" value={newDriver.sex} onChange={e => setNewDriver(d => ({ ...d, sex: e.target.value }))}>
                   <option value="male">Male</option>
@@ -653,8 +669,8 @@ export default function Drivers() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <AddSection title="Licensing">
-              <AddField label="BADGE"><input className="input w-full text-sm" placeholder="Badge / PSV number" value={newDriver.badge_number} onChange={e => setNewDriver(d => ({ ...d, badge_number: e.target.value }))} /></AddField>
-              <AddField label="BADGE EXPIRY"><input className="input w-full text-sm" type="date" value={newDriver.badge_expiry} onChange={e => setNewDriver(d => ({ ...d, badge_expiry: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('badge_number', 'BADGE')}><input className="input w-full text-sm" placeholder="Badge / PSV number" value={newDriver.badge_number} onChange={e => setNewDriver(d => ({ ...d, badge_number: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('badge_expiry', 'BADGE EXPIRY')}><input className="input w-full text-sm" type="date" value={newDriver.badge_expiry} onChange={e => setNewDriver(d => ({ ...d, badge_expiry: e.target.value }))} /></AddField>
               <AddField label="BADGE TYPE">
                 <select className="input w-full text-sm" value={newDriver.badge_type} onChange={e => setNewDriver(d => ({ ...d, badge_type: e.target.value }))}>
                   <option value="hackney">Hackney</option>
@@ -662,9 +678,9 @@ export default function Drivers() {
                   <option value="provincial">Provincial</option>
                 </select>
               </AddField>
-              <AddField label="LICENCE"><input className="input w-full text-sm" placeholder="Driver's licence number" value={newDriver.licence_number} onChange={e => setNewDriver(d => ({ ...d, licence_number: e.target.value }))} /></AddField>
-              <AddField label="LICENCE EXPIRY"><input className="input w-full text-sm" type="date" value={newDriver.licence_expiry} onChange={e => setNewDriver(d => ({ ...d, licence_expiry: e.target.value }))} /></AddField>
-              <AddField label="TAX NUMBER"><input className="input w-full text-sm" value={newDriver.tax_number} onChange={e => setNewDriver(d => ({ ...d, tax_number: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('licence_number', 'LICENCE')}><input className="input w-full text-sm" placeholder="Driver's licence number" value={newDriver.licence_number} onChange={e => setNewDriver(d => ({ ...d, licence_number: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('licence_expiry', 'LICENCE EXPIRY')}><input className="input w-full text-sm" type="date" value={newDriver.licence_expiry} onChange={e => setNewDriver(d => ({ ...d, licence_expiry: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('tax_number', 'TAX NUMBER')}><input className="input w-full text-sm" value={newDriver.tax_number} onChange={e => setNewDriver(d => ({ ...d, tax_number: e.target.value }))} /></AddField>
             </AddSection>
             <AddSection title="Payments">
               <AddField label="COMMISSION (%)"><input className="input w-full text-sm" type="number" min="0" max="100" value={newDriver.commission_pct} onChange={e => setNewDriver(d => ({ ...d, commission_pct: e.target.value }))} /></AddField>
@@ -682,9 +698,9 @@ export default function Drivers() {
                   <option value="card">Card</option>
                 </select>
               </AddField>
-              <AddField label="BANK NAME"><input className="input w-full text-sm" value={newDriver.bank_name} onChange={e => setNewDriver(d => ({ ...d, bank_name: e.target.value }))} /></AddField>
-              <AddField label="ACCOUNT NUMBER"><input className="input w-full text-sm" value={newDriver.bank_account_number} onChange={e => setNewDriver(d => ({ ...d, bank_account_number: e.target.value }))} /></AddField>
-              <AddField label="SORT CODE"><input className="input w-full text-sm" value={newDriver.sort_code} onChange={e => setNewDriver(d => ({ ...d, sort_code: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('bank_name', 'BANK NAME')}><input className="input w-full text-sm" value={newDriver.bank_name} onChange={e => setNewDriver(d => ({ ...d, bank_name: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('bank_account_number', 'ACCOUNT NUMBER')}><input className="input w-full text-sm" value={newDriver.bank_account_number} onChange={e => setNewDriver(d => ({ ...d, bank_account_number: e.target.value }))} /></AddField>
+              <AddField label={fieldLabel('sort_code', 'SORT CODE')}><input className="input w-full text-sm" value={newDriver.sort_code} onChange={e => setNewDriver(d => ({ ...d, sort_code: e.target.value }))} /></AddField>
             </AddSection>
           </div>
           <div className="flex gap-3">
