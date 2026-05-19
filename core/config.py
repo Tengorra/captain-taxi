@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
 
     # Fallback individual fields (for local dev)
-    postgres_host: str = "postgres"
+    postgres_host: str = "db"
     postgres_port: int = 5432
     postgres_db: str = "captaintaxi"
     postgres_user: str = "captaintaxi"

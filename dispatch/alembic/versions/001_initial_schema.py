@@ -15,7 +15,21 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(name: str) -> bool:
+    bind = op.get_bind()
+    return sa.inspect(bind).has_table(name)
+
+
 def upgrade() -> None:
+    if _table_exists("drivers"):
+        # Root alembic chain (alembic/versions/001+002+003) already created
+        # `drivers` and `trips` on the shared database. Skip the table/enum
+        # creates here so dispatch's chain only contributes `location_history`.
+        # When dispatch runs against its own DB, root tables won't exist and
+        # the rest of this function runs as written.
+        _upgrade_location_history_only()
+        return
+
     op.create_table(
         "drivers",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -109,10 +123,31 @@ def upgrade() -> None:
     op.create_index("ix_location_history_recorded_at", "location_history", ["recorded_at"])
 
 
+def _upgrade_location_history_only() -> None:
+    if _table_exists("location_history"):
+        return
+    op.create_table(
+        "location_history",
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("driver_id", sa.String(36), sa.ForeignKey("drivers.id"), nullable=False),
+        sa.Column("trip_id", sa.String(36), sa.ForeignKey("trips.id"), nullable=True),
+        sa.Column("lat", sa.Float, nullable=False),
+        sa.Column("lng", sa.Float, nullable=False),
+        sa.Column("speed_kmh", sa.Float, nullable=True),
+        sa.Column("heading", sa.Float, nullable=True),
+        sa.Column("recorded_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_location_history_driver_id", "location_history", ["driver_id"])
+    op.create_index("ix_location_history_trip_id", "location_history", ["trip_id"])
+    op.create_index("ix_location_history_recorded_at", "location_history", ["recorded_at"])
+
+
 def downgrade() -> None:
     op.drop_table("location_history")
-    op.drop_table("trips")
-    op.drop_table("drivers")
+    if _table_exists("trips"):
+        op.drop_table("trips")
+    if _table_exists("drivers"):
+        op.drop_table("drivers")
     op.execute("DROP TYPE IF EXISTS tripstatus")
     op.execute("DROP TYPE IF EXISTS driverstatus")
     op.execute("DROP TYPE IF EXISTS bookingsource")

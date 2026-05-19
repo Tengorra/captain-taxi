@@ -1,5 +1,5 @@
 # Captain Taxi — Project State
-**Last updated:** 2026-05-19 (session 9)
+**Last updated:** 2026-05-19 (session 10)
 **Platform:** Multi-agent AI system to run a taxi company (Saskatoon & Regina, SK) with minimum human input.
 
 ---
@@ -138,6 +138,41 @@ Owner: WhatsApp +13068811542 | Amara (wife/co-decision-maker): +13068500760
 
 ---
 
+## ✅ Session 10 Fixes Applied (2026-05-19)
+
+Session 9's 4 named blockers were all fixed. Two additional same-class bugs
+that surfaced during re-verification were also patched. A 7th
+architectural-drift issue (state-machine mismatch on `drivers.status`) was
+documented but **not fixed** per "do not redesign architecture".
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | `.env.example` `POSTGRES_HOST=postgres` ≠ compose service `db`; same wrong default in `core/config.py:13` | Both set to `db`. Files: `.env.example:2`, `core/config.py:13` |
+| 2 | Root + dispatch alembic share `alembic_version` table → dispatch container CMD aborts with `Can't locate revision '002'` | Dispatch alembic env.py now uses `version_table="alembic_version_dispatch"`. File: `dispatch/alembic/env.py` |
+| 3 | Dispatch's `Driver` model expects `vehicle_plate`/`vehicle_model`/`is_active`/`last_lat`/`last_lng`/`last_location_at` on `drivers`; root migration never created them; `create_all` skips existing tables | New migration `alembic/versions/003_dispatch_driver_columns.py` adds all six columns (nullable / default-safe) |
+| 4 | `customers.id` is `VARCHAR(36)` in root migration but `UUID` in customer models → `bookings`/`complaints`/`conversation_logs` FK creates fail with `DatatypeMismatchError` | `customer/db/models.py` switched all `UUID(as_uuid=True)` columns to `String(36)` (`Customer.id`, `Booking.id`/`customer_id`, `Complaint.id`/`customer_id`, `ConversationLog.id`/`customer_id`). Added local `_uuid_str()` helper; removed `from sqlalchemy.dialects.postgresql import UUID` |
+| 5 (new) | Dispatch alembic's own `001` tries to `CREATE TABLE drivers` which root migration already created → `DuplicateTableError` after fix #2 enabled the chain to run | Made dispatch `001` idempotent: if `drivers` already exists, only `location_history` is created. Pure no-op on a dispatch-only DB. File: `dispatch/alembic/versions/001_initial_schema.py` |
+| 6 (new) | `dispatch/redis_client.py:40,55` references undefined `settings.driver_location_ttl` → driver-location PATCH returns 500 (E2E step 3) | Added `driver_location_ttl: int = 300` to `dispatch/config.py` |
+
+**Verification — post-fix run on native Postgres 16 + Redis 7 (Docker still unavailable in Code-on-Web):**
+
+1. `alembic upgrade head` (root): `001 → 002 → 003` clean. ✅
+2. `cd dispatch && alembic upgrade head`: `→ 001` clean, stamped in `alembic_version_dispatch`. ✅
+3. `\dt` after both chains: 10 tables incl. `location_history`, plus `alembic_version` (root) and `alembic_version_dispatch` (dispatch) coexisting. ✅
+4. `customer` service startup: no `bookings_customer_id_fkey` FK error in logs (the Blocker 4 symptom is gone). `bookings`, `complaints`, `conversation_logs` created cleanly. ✅
+5. `dispatch` service startup: `/health` returns 200. ✅
+6. `customer` service `/health` returns `{"status":"ok","redis":"ok"}`. ✅
+7. `scripts/test_e2e.py` run:
+   - Step 1/10 health checks — ✅
+   - Step 2/10 seed driver — ✅ (Blocker 3 confirmed fixed: driver row inserted with all 6 new columns populated)
+   - Step 3/10 register driver GPS — ✅ (Blocker 6 confirmed fixed)
+   - Step 4/10 book via customer web chat — ❌ **Anthropic 401 (`invalid x-api-key`)** because the verification env uses a stub `sk-ant-x` key per CLAUDE.md "Do not invent credentials". The test script aborts on step 4 failure (`sys.exit(1)` in `scripts/test_e2e.py:547`), so steps 5–10 do not execute.
+   - The chat-dependent steps (5 wait_for_assignment, 6 driver lifecycle, 7 final state) cannot be verified without a real `ANTHROPIC_API_KEY`.
+   - The dispatch-direct paths (steps 8 direct-booking, 8b pre-booking, 9 no-show, 10 stats/queue/map) are blocked by issue #7 below.
+
+**Issue #7 — NOT fixed (architectural drift, out of scope per user direction):**
+`drivers.status` is `VARCHAR(20)` in the root alembic chain (default `'onboarding'`, also used for `active`/`pending`/`suspended`/`offline` in the admin/drivers services' state machine), but dispatch defines `Driver.status` as the `driverstatus` enum with completely different values (`online`, `offline`, `on_trip`, `break`, `parked`, `dropping`, `bidding`). Any dispatch query containing `WHERE drivers.status != $1::driverstatus` errors with `operator does not exist: character varying <> driverstatus`. INSERTs from dispatch work because PG implicitly casts the enum literal back to varchar on write, but reads/filters fail. This affects: direct-booking, queue, stats, map endpoints. **Fixing this requires deciding on a single source of truth for the driver state machine across orchestrator/admin/drivers/dispatch** — that's the architectural decision the user said not to make in this session. Logged for the next session.
+
 ## ⚠️ Blocking E2E Failures (session 9, 2026-05-19)
 
 E2E verification ran against a native Postgres 16 + Redis 7 (Docker daemon
@@ -267,6 +302,7 @@ is its container CMD.
 | 4 | 2026-04-12 | Fixed 3 bugs in customer→dispatch API client (wrong URLs, missing city, wrong field name); added city to booking tool; wrote `scripts/test_e2e.py` full E2E test |
 | 5 | 2026-04-12 | iCabbi feature parity: added noshow status/endpoint, priority/via/email/instructions/site fields, parked/dropping/bidding driver statuses, 7-tab queue endpoint, full Dispatch.tsx console rebuild (booking form + driver pane + live map + job board), extended E2E test |
 | 6 | 2026-04-12 | GitHub repo: https://github.com/Tengorra/captain-taxi | Vercel dashboard deployed: https://captain-taxi-dashboard.vercel.app | Git → GitHub connected; backend needs Railway deploy + VITE_API_URL set on Vercel |
+| 10 | 2026-05-19 | Fixed all 4 named E2E blockers from session 9 plus 2 same-class issues found during re-verification. (1) `.env.example` POSTGRES_HOST and `core/config.py` default both → `db`. (2) Dispatch alembic uses `version_table="alembic_version_dispatch"`. (3) New migration `003_dispatch_driver_columns.py` adds vehicle_plate, vehicle_model, is_active, last_lat, last_lng, last_location_at to drivers. (4) Customer models: all `UUID(as_uuid=True)` → `String(36)` (Customer/Booking/Complaint/ConversationLog). (5) Dispatch alembic 001 made idempotent so it only creates `location_history` when run after root chain. (6) Added missing `driver_location_ttl` setting to dispatch config. E2E now passes steps 1–3 cleanly (3/3 dispatch direct paths). Step 4 blocked by stub Anthropic key (no real cred per CLAUDE.md). 7th issue (driver-status state-machine drift between root VARCHAR vs dispatch enum) documented but not fixed — out of scope. No new features; no frontend changes. |
 | 9 | 2026-05-19 | E2E verification (read-only, no feature work). Docker daemon unavailable in Code-on-Web — used native Postgres 16 + Redis 7. Root alembic chain `001 → 002` applies cleanly; migration 002 verified to add all 30 iCabbi columns, drop UNIQUE on phone, and relax NOT NULL on name/phone/city. `customer`/`dispatch`/`drivers` import & start cleanly; `/health` returns 200 on both. `scripts/test_e2e.py` halts at step 2/10. Logged 4 blocking bugs + 1 environmental constraint in new "Blocking E2E Failures" section: (1) `.env.example` POSTGRES_HOST=postgres doesn't match compose service `db`, (2) root and dispatch alembic chains collide on shared `alembic_version` table (dispatch container's `alembic upgrade head && uvicorn` shortcircuits, dispatch never starts), (3) per-service models drift from root migration's `drivers` schema (dispatch driver insert → `column "vehicle_plate" does not exist`), (4) `customers.id` is `VARCHAR(36)` in migration but `UUID` in customer models → bookings/complaints/conversation_logs FKs can't be created. No code changes made — verification only. |
 | 8 | 2026-05-19 | (1) Settings UI now controls manual "Add Driver" required-field rules. New setting `driver_required_fields` (CSV) seeded with default `first_name,last_name,phone`. `Drivers.tsx` validates dynamically against the setting and renders `*` markers from the same source. `PUT /settings/{key}` now upserts. (2) **Voice stack migrated from Vapi → ElevenLabs Conversational AI + Twilio.** Deleted `customer/routers/vapi.py` and `customer/vapi/`. Added `customer/routers/elevenlabs.py` (tool + post-call webhooks, HMAC signature verification, path-routed + body-routed tool shapes). Added `customer/elevenlabs/agent_config.json` for dashboard paste-in. Swapped `vapi_*` config for `elevenlabs_*` in `customer/config.py` and `customer/.env.example`. CLAUDE.md now contains an explicit "NOT Vapi" rule. |
 | 7 | 2026-05-17 | Drivers module re-aligned to iCabbi export schema. Added ~30 new first-class columns to `drivers` table (first_name/last_name/aka/mobile/gender/address, badge_type/school_badge_expiry/ni_number, icabbi_ref/vehicle_ref/start_date, full device/app metadata, last_active_at/last_updated_at, frequency/payment_period/payment_terms/output_preference/si_id) + `icabbi_config` JSON catch-all for the ~30 deep app-config flags. Relaxed NOT NULL on name/phone and dropped UNIQUE on phone so blank/duplicate iCabbi rows import cleanly. Migration: `alembic/versions/002_icabbi_driver_fields.py`. Admin `POST /drivers/` accepts the full iCabbi field set, dedupes by `icabbi_ref` (returns 409 → dashboard counts as dupe), handles DD/MM/YYYY dates, treats 1969 as null, recovers scientific-notation phones, dumps unknown columns into icabbi_config. Dashboard Drivers table redesigned to iCabbi-style columns (REF/FIRST/LAST/MOBILE/BADGE/EXPIRIES/VEHICLE/LAST ACTIVE/ACTIVE). Manual-entry mandatory-field rules stay client-side for now (deferred to a future Settings change). |

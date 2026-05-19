@@ -10,8 +10,11 @@ from sqlalchemy import (
     Column, String, DateTime, Boolean, Integer, Float,
     Text, ForeignKey, Enum, JSON, Index, func
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
+
+
+def _uuid_str() -> str:
+    return str(uuid.uuid4())
 
 
 class Base(DeclarativeBase):
@@ -48,7 +51,7 @@ class ComplaintStatus(str, PyEnum):
 class Customer(Base):
     __tablename__ = "customers"
 
-    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id              = Column(String(36), primary_key=True, default=_uuid_str)
     phone           = Column(String(20), unique=True, nullable=False, index=True)
     name            = Column(String(100))
     email           = Column(String(200))
@@ -68,9 +71,9 @@ class Customer(Base):
 class Booking(Base):
     __tablename__ = "bookings"
 
-    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id              = Column(String(36), primary_key=True, default=_uuid_str)
     trip_id         = Column(String(50), unique=True, index=True)   # iCabbi trip ID
-    customer_id     = Column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False)
+    customer_id     = Column(String(36), ForeignKey("customers.id"), nullable=False)
     channel         = Column(Enum(Channel), nullable=False)
     pickup_address  = Column(String(300), nullable=False)
     dropoff_address = Column(String(300), nullable=False)
@@ -95,8 +98,8 @@ class Booking(Base):
 class Complaint(Base):
     __tablename__ = "complaints"
 
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False)
+    id          = Column(String(36), primary_key=True, default=_uuid_str)
+    customer_id = Column(String(36), ForeignKey("customers.id"), nullable=False)
     trip_id     = Column(String(50), index=True)
     channel     = Column(Enum(Channel), nullable=False)
     description = Column(Text, nullable=False)
@@ -115,9 +118,9 @@ class Complaint(Base):
 class ConversationLog(Base):
     __tablename__ = "conversation_logs"
 
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id          = Column(String(36), primary_key=True, default=_uuid_str)
     session_id  = Column(String(100), index=True, nullable=False)
-    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id"))
+    customer_id = Column(String(36), ForeignKey("customers.id"))
     channel     = Column(Enum(Channel), nullable=False)
     messages    = Column(JSON, default=list)   # List of {role, content, ts}
     started_at  = Column(DateTime(timezone=True), server_default=func.now())

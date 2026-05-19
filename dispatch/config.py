@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     max_assignment_radius_km: float = 15.0
     nearby_drivers_limit: int = 10
 
+    # Redis TTL for driver-location entries (referenced by redis_client.py).
+    # Longer than the typical app GPS ping interval so drivers don't
+    # disappear from the geo index between updates.
+    driver_location_ttl: int = 300
+
     # Cities
     supported_cities: list[str] = ["saskatoon", "regina"]
 

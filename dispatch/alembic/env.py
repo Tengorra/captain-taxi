@@ -23,19 +23,29 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+# Separate version table so dispatch's alembic chain doesn't collide with
+# the root chain (alembic/env.py) when both target the same database.
+VERSION_TABLE = "alembic_version_dispatch"
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=settings.database_url_sync,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table=VERSION_TABLE,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table=VERSION_TABLE,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
